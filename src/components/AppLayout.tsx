@@ -21,6 +21,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useScheduler } from '@/contexts/SchedulerContext';
 import { useSchedulerPublish } from '@/hooks/useSchedulerPublish';
+import { SchedulerStatusIndicator } from '@/components/SchedulerStatusIndicator';
 import { cn } from '@/lib/utils';
 
 const LOGO_URL = 'https://blossom.ditto.pub/b4404a2ff1e10f618765cfe9f3d28d7f05daccb28466af50d0354021c1b18d3c.jpeg';
@@ -159,6 +160,9 @@ export function AppLayout({ children }: AppLayoutProps) {
             </div>
           );
         })()}
+
+        {/* Scheduler backend status */}
+        {user && <SchedulerStatusIndicator />}
 
         {/* Bottom section */}
         <div className="p-3 border-t border-border space-y-3">

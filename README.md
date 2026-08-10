@@ -328,6 +328,37 @@ The app is currently deployed on Netlify at: `https://plebeian-scheduler.netlify
 
 ---
 
+## Self-Hosting the Backend (Own Server)
+
+You are **not** locked into Netlify. The scheduling backend is fully portable.
+A standalone, drop-in replacement lives in [`server/`](./server) — a tiny Node
+service with **zero npm dependencies** (Node 22 built-in SQLite + WebSocket) and
+a built-in publish timer (no external cron required).
+
+### 1. Run the backend on your VPS
+
+```bash
+git clone https://github.com/bitcoinbekka/plebeian-scheduler.git
+cd plebeian-scheduler/server
+docker compose up -d --build      # or: node scheduler-server.mjs
+```
+
+Put it behind HTTPS with Caddy/Nginx (see [`server/README.md`](./server/README.md)
+for full instructions, reverse-proxy configs, and the API reference).
+
+### 2. Point the app at it
+
+In the app, open **Settings → Scheduler Backend**, enter your server's URL
+(e.g. `https://scheduler.your-domain.com`), and click **Test connection**.
+That's it — scheduled posts now flow through your own server instead of Netlify.
+
+The frontend reads the backend URL from `AppConfig.schedulerBackendUrl`. Leaving
+it blank falls back to the built-in same-origin Netlify function, so the default
+behavior is unchanged. A live **status indicator** in the sidebar and Settings
+shows whether the backend is `online`, `degraded`, or `offline` at a glance.
+
+---
+
 ## Environment Variables
 
 Set these in Netlify > Site configuration > Environment variables:

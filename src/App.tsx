@@ -7,6 +7,7 @@ import { InferSeoMetaPlugin } from '@unhead/addons';
 import { Suspense } from 'react';
 import NostrProvider from '@/components/NostrProvider';
 import { NostrSync } from '@/components/NostrSync';
+import { SchedulerBackendSync } from '@/components/SchedulerBackendSync';
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NostrLoginProvider } from '@nostrify/react/login';
@@ -34,6 +35,9 @@ const queryClient = new QueryClient({
 
 const defaultConfig: AppConfig = {
   theme: "light",
+  // Empty = use the built-in same-origin Netlify function.
+  // Merchants self-hosting can override this in Settings to point at their own server.
+  schedulerBackendUrl: "",
   relayMetadata: {
     relays: [
       { url: 'wss://relay.ditto.pub', read: true, write: true },
@@ -57,6 +61,7 @@ export function App() {
               <NostrSync />
               <NWCProvider>
                 <SchedulerProvider>
+                  <SchedulerBackendSync />
                   <TooltipProvider>
                     <Toaster />
                     <Suspense>

@@ -1,0 +1,21 @@
+services:
+  scheduler:
+    build: .
+    # Or pull a prebuilt image once you publish one:
+    # image: ghcr.io/bitcoinbekka/plebeian-scheduler-server:latest
+    container_name: plebeian-scheduler
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      DATA_DIR: "/data"
+      # Set a strong secret to protect the manual cron trigger endpoint.
+      CRON_SECRET: "${CRON_SECRET:-}"
+      # How often (ms) to check for and publish due events.
+      CHECK_MS: "60000"
+    volumes:
+      - scheduler-data:/data
+
+volumes:
+  scheduler-data:

@@ -25,6 +25,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { RelayListManager } from '@/components/RelayListManager';
+import { SchedulerBackendSettings } from '@/components/SchedulerBackendSettings';
 import { useTheme } from '@/hooks/useTheme';
 import { useScheduler } from '@/contexts/SchedulerContext';
 import { useToast } from '@/hooks/useToast';
@@ -149,6 +150,9 @@ export default function SettingsPage() {
           <RelayListManager />
         </CardContent>
       </Card>
+
+      {/* Scheduler Backend */}
+      <SchedulerBackendSettings />
 
       {/* Data Management */}
       <Card>

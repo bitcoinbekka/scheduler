@@ -25,6 +25,7 @@ const RelayMetadataSchema = z.object({
 const AppConfigSchema = z.object({
   theme: z.enum(['dark', 'light', 'system']),
   relayMetadata: RelayMetadataSchema,
+  schedulerBackendUrl: z.string(),
 }) satisfies z.ZodType<AppConfig>;
 
 export function AppProvider(props: AppProviderProps) {

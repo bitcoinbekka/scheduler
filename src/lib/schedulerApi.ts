@@ -1,8 +1,11 @@
 /**
- * Client for the Netlify scheduler function API.
+ * Client for the scheduler backend API.
  *
- * When deployed, the function is at /.netlify/functions/scheduler
- * During development, we detect the base URL from the current origin.
+ * By default this targets the built-in same-origin Netlify function at
+ * `/.netlify/functions/scheduler`. When self-hosting, the base URL can be
+ * overridden via `setSchedulerBaseUrl(url)` (wired to AppConfig in
+ * SchedulerBackendSync), allowing the app to point at any backend that
+ * implements the same simple API.
  */
 
 interface ScheduleRequest {
@@ -34,10 +37,47 @@ interface StatusResponse {
   results: { relay: string; ok: boolean; message?: string; error?: string }[] | null;
 }
 
-function getApiUrl(): string {
-  // In production (Netlify), the function is at the same origin
-  // In dev, we use the deployed site URL if available
-  return '/.netlify/functions/scheduler';
+export interface HealthResponse {
+  ok: boolean;
+  service?: string;
+  storage?: string;
+  method?: string;
+}
+
+/** The built-in default backend (same-origin Netlify function). */
+export const DEFAULT_SCHEDULER_PATH = '/.netlify/functions/scheduler';
+
+/**
+ * Module-level base URL. Empty string means "use the default path".
+ * Updated at runtime by SchedulerBackendSync from AppConfig.
+ */
+let baseUrl = '';
+
+/**
+ * Set the scheduler backend base URL.
+ *
+ * @param url A full origin/URL (e.g. `https://scheduler.example.com`) or an
+ *   empty string to fall back to the default same-origin Netlify function.
+ */
+export function setSchedulerBaseUrl(url: string): void {
+  baseUrl = (url || '').trim().replace(/\/+$/, '');
+}
+
+/** Get the currently configured scheduler base URL (empty = default). */
+export function getSchedulerBaseUrl(): string {
+  return baseUrl;
+}
+
+/**
+ * Resolve the endpoint to call.
+ *
+ * - If a custom base URL is configured, use it directly (the self-hosted
+ *   backend is expected to be mounted at the root of that URL).
+ * - Otherwise, use the default same-origin Netlify function path.
+ */
+function getApiUrl(query = ''): string {
+  const base = baseUrl || DEFAULT_SCHEDULER_PATH;
+  return `${base}${query}`;
 }
 
 /**
@@ -45,9 +85,7 @@ function getApiUrl(): string {
  * The server stores it and publishes to relays at the specified time.
  */
 export async function scheduleEvent(request: ScheduleRequest): Promise<ScheduleResponse> {
-  const url = getApiUrl();
-
-  const response = await fetch(url, {
+  const response = await fetch(getApiUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
@@ -65,9 +103,7 @@ export async function scheduleEvent(request: ScheduleRequest): Promise<ScheduleR
  * Check the status of a scheduled event.
  */
 export async function checkEventStatus(eventId: string): Promise<StatusResponse> {
-  const url = `${getApiUrl()}?id=${encodeURIComponent(eventId)}`;
-
-  const response = await fetch(url, {
+  const response = await fetch(getApiUrl(`?id=${encodeURIComponent(eventId)}`), {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
   });
@@ -84,9 +120,7 @@ export async function checkEventStatus(eventId: string): Promise<StatusResponse>
  * Cancel a scheduled event that hasn't been published yet.
  */
 export async function cancelScheduledEvent(eventId: string): Promise<{ ok: boolean }> {
-  const url = `${getApiUrl()}?id=${encodeURIComponent(eventId)}`;
-
-  const response = await fetch(url, {
+  const response = await fetch(getApiUrl(`?id=${encodeURIComponent(eventId)}`), {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
   });
@@ -100,7 +134,8 @@ export async function cancelScheduledEvent(eventId: string): Promise<{ ok: boole
 }
 
 /**
- * Check if the scheduler API is available (deployed on Netlify).
+ * Check if the scheduler API is available (deployed and reachable).
+ * Returns a boolean for quick availability checks.
  */
 export async function isSchedulerApiAvailable(): Promise<boolean> {
   try {
@@ -112,4 +147,29 @@ export async function isSchedulerApiAvailable(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Fetch the health-check payload from the backend.
+ *
+ * Optionally accepts a `url` override so the Settings page can test a
+ * candidate backend URL before saving it. Throws on network failure or a
+ * non-OK response.
+ */
+export async function checkSchedulerHealth(url?: string): Promise<HealthResponse> {
+  const base = typeof url === 'string'
+    ? (url.trim().replace(/\/+$/, '') || DEFAULT_SCHEDULER_PATH)
+    : (baseUrl || DEFAULT_SCHEDULER_PATH);
+
+  const response = await fetch(base, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(5000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  return response.json();
 }
