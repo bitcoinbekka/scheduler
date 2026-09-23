@@ -97,6 +97,22 @@ function buildShortNoteEvent(post: SchedulerPost, now: number): UnsignedEvent {
     tags.push(['expiration', String(post.expiresAt)]);
   }
 
+  // NIP-99 listing reference (promo notes)
+  if (post.importedListing?.naddr) {
+    try {
+      const decoded = nip19.decode(post.importedListing.naddr);
+      if (decoded.type === 'naddr') {
+        const { kind, pubkey, identifier } = decoded.data;
+        tags.push(['a', `${kind}:${pubkey}:${identifier}`]);
+      }
+    } catch {
+      // Invalid naddr, skip
+    }
+    if (post.importedListing.authorPubkey) {
+      tags.push(['p', post.importedListing.authorPubkey]);
+    }
+  }
+
   return {
     kind: 1,
     content,
@@ -156,6 +172,22 @@ function buildLongFormEvent(post: SchedulerPost, now: number): UnsignedEvent {
   // NIP-40 expiration
   if (post.expiresAt) {
     tags.push(['expiration', String(post.expiresAt)]);
+  }
+
+  // NIP-99 listing reference (promo notes)
+  if (post.importedListing?.naddr) {
+    try {
+      const decoded = nip19.decode(post.importedListing.naddr);
+      if (decoded.type === 'naddr') {
+        const { kind, pubkey, identifier } = decoded.data;
+        tags.push(['a', `${kind}:${pubkey}:${identifier}`]);
+      }
+    } catch {
+      // Invalid naddr, skip
+    }
+    if (post.importedListing.authorPubkey) {
+      tags.push(['p', post.importedListing.authorPubkey]);
+    }
   }
 
   return {
