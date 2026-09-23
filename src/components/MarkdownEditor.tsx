@@ -113,7 +113,7 @@ function renderMarkdownPreview(md: string): string {
   html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="rounded-lg my-4 max-w-full" />');
 
   // Nostr mentions (nostr:npub1...)
-  html = html.replace(/nostr:(npub1[a-z0-9]+)/g, '<span class="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded-full text-sm font-medium">@$1</span>');
+html = html.replace(/nostr:(npub1[a-z0-9]{6})[a-z0-9]+/g, '<span class="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded-full text-sm font-medium">@$1…</span>');
 
   // Unordered list items
   html = html.replace(/^- (.+)$/gm, '<li class="ml-4 list-disc">$1</li>');
