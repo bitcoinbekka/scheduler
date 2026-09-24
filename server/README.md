@@ -8,12 +8,11 @@ Plebeian Scheduler frontend can talk to it without any code changes.
 Point the app at it by opening **Settings → Scheduler Backend** and entering
 this server's public URL (e.g. `https://scheduler.your-domain.com`).
 
-- **Zero npm dependencies** — uses Node 22's built-in SQLite (`node:sqlite`) and
-  native `WebSocket`.
+- **SQLite + WebSocket** via Node 22. NIP-46 fire-time signing adds `nostr-tools`.
 - **No external cron needed** — an internal timer publishes due events every
   minute (the `?action=cron` endpoint is still available for manual triggering).
-- **Your keys never touch the server** — the browser signs events; the server
-  only stores and forwards the already-signed event.
+- **Your nsec never touches the server** — either the browser pre-signs, or
+  Amber signs at fire time over NIP-46. See `docs/NIP46-FIRE-TIME.md`.
 
 ---
 
@@ -60,7 +59,8 @@ Configure with environment variables (see `.env.example`):
 | `PORT`        | `8080`    | Port to listen on                                  |
 | `DATA_DIR`    | `./data`  | Where the SQLite database file is stored           |
 | `CRON_SECRET` | *(empty)* | Secret for the optional `?action=cron` endpoint    |
-| `CHECK_MS`    | `60000`   | How often (ms) to check for and publish due events |
+| `CHECK_MS`          | `60000`   | How often (ms) to check for and publish due events |
+| `BUNKER_STORE_KEY`  | *(empty)* | Required for NIP-46 jobs. Encrypts bunker URIs at rest |
 
 ---
 

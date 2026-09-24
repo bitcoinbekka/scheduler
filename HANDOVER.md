@@ -213,6 +213,9 @@ Priority order:
 - **Single-user / localStorage** — no cross-device sync of drafts/queues.
 - **DVM publishing (NIP-90 kind 5905)** — scaffolding exists
   (`buildDvmPublishRequest`) for a future trustless publishing path.
+- **NIP-46 fire-time signing** — Slice 1. Self-hosted backend can store an
+  unsigned template and ask Amber at publish time. See `docs/NIP46-FIRE-TIME.md`.
+  Pre-signed path is unchanged. Plebeian Signer remains NIP-07 only.
 
 ---
 

@@ -9,7 +9,7 @@
  */
 
 interface ScheduleRequest {
-  signedEvent: {
+  signedEvent?: {
     id: string;
     pubkey: string;
     created_at: number;
@@ -18,6 +18,15 @@ interface ScheduleRequest {
     content: string;
     sig: string;
   };
+  /** Fire-time NIP-46: unsigned template, no sig. */
+  unsignedEvent?: {
+    kind: number;
+    content: string;
+    tags: string[][];
+    pubkey: string;
+  };
+  bunkerUri?: string;
+  mode?: 'presigned' | 'nip46';
   publishAt: number;
   relays?: string[];
 }
@@ -27,6 +36,7 @@ interface ScheduleResponse {
   id: string;
   publishAt: number;
   status: string;
+  mode?: string;
 }
 
 interface StatusResponse {
@@ -35,6 +45,8 @@ interface StatusResponse {
   publishAt: number;
   publishedAt: number | null;
   results: { relay: string; ok: boolean; message?: string; error?: string }[] | null;
+  mode?: string;
+  publishedEventId?: string | null;
 }
 
 export interface HealthResponse {
@@ -42,6 +54,7 @@ export interface HealthResponse {
   service?: string;
   storage?: string;
   method?: string;
+  nip46?: boolean;
 }
 
 /** The built-in default backend (same-origin Netlify function). */

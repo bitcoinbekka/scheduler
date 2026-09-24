@@ -3,12 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Self-hostable backend for Plebeian Scheduler — stores pre-signed Nostr events and publishes them at the scheduled time.",
+  "description": "Self-hostable backend for Plebeian Scheduler. Pre-signed publish, plus optional NIP-46 fire-time signing.",
   "license": "GPL-3.0",
   "engines": {
     "node": ">=22.5.0"
   },
   "scripts": {
     "start": "node scheduler-server.mjs"
+  },
+  "dependencies": {
+    "nostr-tools": "^2.13.0"
   }
 }

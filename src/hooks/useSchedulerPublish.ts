@@ -156,7 +156,7 @@ export function useSchedulerPublish() {
           const status = await checkEventStatus(post.serverEventId);
 
           if (status.status === 'published') {
-            markPublished(post.id, post.serverEventId);
+            markPublished(post.id, status.publishedEventId || post.serverEventId);
             const label = getLabel(post);
             toast({
               title: `Published: ${label}`,

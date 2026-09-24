@@ -67,6 +67,8 @@ import { useBatchEngagement } from '@/hooks/usePostEngagement';
 import { useSmartHashtags } from '@/hooks/useSmartHashtags';
 import { buildEvent } from '@/lib/eventBuilder';
 import { scheduleEvent } from '@/lib/schedulerApi';
+import { loadBunkerSettings, parseBunkerUri } from '@/lib/bunkerUri';
+import { templateFromBuild } from '@/lib/fireTimeEvent';
 import { createNewPost, type SchedulerPost, type PostType, type PostTemplate, type ImportedListing, type UploadedImage } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -274,14 +276,50 @@ export default function Compose() {
     setIsSaving(false);
   }, [post, user, updatePost, toast]);
 
-  // Core scheduling logic — signs the event now and sends to the server
+  // Core scheduling logic — pre-sign (default) or NIP-46 fire-time (Amber bunker)
   const submitSchedule = useCallback(async (scheduledAt: number) => {
     if (!user) return;
 
     const postToSchedule = { ...post, authorPubkey: user.pubkey };
     const eventData = buildEvent(postToSchedule);
+    const writeRelays = config.relayMetadata.relays
+      .filter(r => r.write)
+      .map(r => r.url);
+    const bunker = loadBunkerSettings();
 
-    // Sign the event NOW so the server never needs our private key
+    if (bunker.signAtFire) {
+      parseBunkerUri(bunker.bunkerUri);
+      const unsignedEvent = templateFromBuild(eventData, user.pubkey);
+      try {
+        const result = await scheduleEvent({
+          mode: 'nip46',
+          unsignedEvent,
+          bunkerUri: bunker.bunkerUri,
+          publishAt: scheduledAt,
+          relays: writeRelays.length > 0 ? writeRelays : undefined,
+        });
+        const updated: SchedulerPost = {
+          ...postToSchedule,
+          status: 'scheduled',
+          scheduledAt,
+          serverEventId: result.id,
+          publishedEventId: null,
+        };
+        updatePost(updated);
+        setPost(updated);
+        setPersisted(true);
+        return { ok: true, eventId: result.id, nip46: true };
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : 'NIP-46 schedule failed';
+        toast({
+          title: 'Could not schedule with Amber',
+          description: msg,
+          variant: 'destructive',
+        });
+        return { ok: false };
+      }
+    }
+
     const signedEvent = await user.signer.signEvent({
       kind: eventData.kind,
       content: eventData.content,
@@ -289,12 +327,6 @@ export default function Compose() {
       created_at: eventData.created_at,
     });
 
-    // Gather the user's write relays so the server publishes to all of them
-    const writeRelays = config.relayMetadata.relays
-      .filter(r => r.write)
-      .map(r => r.url);
-
-    // Send the pre-signed event to the server for future publishing
     try {
       const result = await scheduleEvent({
         signedEvent,
@@ -314,7 +346,6 @@ export default function Compose() {
       setPersisted(true);
       return { ok: true, eventId: signedEvent.id };
     } catch (error) {
-      // Server unavailable — fall back to local scheduling
       console.warn('[Scheduler] Server unavailable, falling back to local scheduling:', error);
       const updated: SchedulerPost = {
         ...postToSchedule,
@@ -327,7 +358,7 @@ export default function Compose() {
       setPersisted(true);
       return { ok: false, local: true };
     }
-  }, [post, user, updatePost]);
+  }, [post, user, updatePost, config.relayMetadata.relays, toast]);
 
   // Schedule for a specific date & time
   const [isScheduling, setIsScheduling] = useState(false);

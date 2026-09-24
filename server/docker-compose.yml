@@ -14,6 +14,7 @@ services:
       CRON_SECRET: "${CRON_SECRET:-}"
       # How often (ms) to check for and publish due events.
       CHECK_MS: "60000"
+      BUNKER_STORE_KEY: "${BUNKER_STORE_KEY:-}"
     volumes:
       - scheduler-data:/data
 

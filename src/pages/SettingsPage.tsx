@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { RelayListManager } from '@/components/RelayListManager';
 import { SchedulerBackendSettings } from '@/components/SchedulerBackendSettings';
+import { SchedulerBunkerSettings } from '@/components/SchedulerBunkerSettings';
 import { useTheme } from '@/hooks/useTheme';
 import { useScheduler } from '@/contexts/SchedulerContext';
 import { useToast } from '@/hooks/useToast';
@@ -153,6 +154,7 @@ export default function SettingsPage() {
 
       {/* Scheduler Backend */}
       <SchedulerBackendSettings />
+      <SchedulerBunkerSettings />
 
       {/* Data Management */}
       <Card>

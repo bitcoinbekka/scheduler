@@ -5,9 +5,11 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Only the source is needed (no dependencies to install).
 COPY package.json ./
 COPY scheduler-server.mjs ./
+COPY secret-box.mjs ./
+COPY nip46-sign.mjs ./
+RUN npm install --omit=dev
 
 # Persist the SQLite database outside the container.
 ENV DATA_DIR=/data
