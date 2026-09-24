@@ -1,4 +1,3 @@
-[PASTE THE ENTIRE ADR CONTENT HERE]
 # ADR 0007: Scheduled Publishing and the created_at Constraint
 
 **Status:** Proposed
@@ -70,45 +69,73 @@ This issue affects **all** users of the scheduler, not a subset.
 
 ## Options Considered
 
-### Option A: NIP-46 Remote Signing at Publish Time
+### Option A: NIP-46 Remote Signing at Publish Time (Recommended)
 
-The backend wakes at publish time and requests a fresh signature from the
-user's NIP-46 signer (bunker) over the network. The signer constructs and
-signs a new event with `created_at = now`, and the backend publishes it.
+The backend stores the *unsigned* event data (content, tags, intended
+publish time). At publish time, it sends a `sign_event` request over
+Nostr to the user's NIP-46 signer (bunker). The signer constructs and
+signs a fresh event with `created_at = now`, and the backend publishes it.
 
 - **Pros:** Correct semantics. Private key never leaves the signer.
-  Fully Nostr-native.
+  Fully Nostr-native. The published event is indistinguishable from one
+  signed directly by the user's client.
 - **Cons:** Requires the user's signer to be online and reachable at
   publish time. If the signer is offline, the post cannot be published.
-- **Best for:** Users who already run a NIP-46 signer and want strict
-  key custody.
+- **Best for:** Merchants who already run a NIP-46 signer (nsec.app,
+  Amber, or a self-hosted bunker) and want correct timestamps without
+  handing over keys.
 
-### Option B: Delegated Signing Key
+**Deployment note:** The signer can run on the same server as the
+backend (self-hosted bunker), on the user's phone (Amber), or as a
+hosted service (nsec.app). The backend only needs a `bunker://` URL.
+For scheduled publishing to work unattended, the signer must be
+configured to auto-approve `sign_event` requests from the backend's
+pubkey. This is a one-time setup step the merchant performs.
 
-A scoped sub-key is derived (or issued) at schedule time and held by the
-backend. The key is authorized to sign only certain event kinds, or only
-for a specific app context. The backend signs the event at publish time
-with `created_at = now`.
+**Important distinction — NIP-46 vs NIP-07:**
+The Plebeian browser extension (`PlebeianApp/plebeian-signer`) implements
+NIP-07, which signs events when the user is present in the browser. It
+cannot sign at 8:00 AM while the user sleeps. For scheduled publishing,
+a NIP-46 bunker is required. These are complementary, not interchangeable:
+NIP-07 for interactive sessions, NIP-46 for delegated/server-initiated
+signing.
 
-- **Pros:** Simple, reliable, no dependency on the signer being online.
-- **Cons:** Introduces a trust relationship — the backend holds a key
-  that can sign as the user. Requires careful scoping and clear disclosure.
-- **Best for:** Users who prioritize reliability and are comfortable with
-  a delegated signing model.
+### Option B: Delegated Signing Key (NIP-26)
+
+A scoped sub-key is authorized via NIP-26 to sign events on behalf of the
+user's primary key. The backend holds the sub-key and signs at publish time.
+
+- **Pros:** No dependency on the signer being online. Simple to operate.
+- **Cons:** NIP-26 is not widely supported by current clients. Adds a
+  delegation tag to every event. Introduces a trust relationship — the
+  backend holds a key that can sign as the user. The published event's
+  `pubkey` is the delegator's, but clients that don't understand NIP-26
+  may display it as unverified or attribute it to the delegatee.
+- **Best for:** Legacy compatibility. Not recommended for new deployments.
 
 ### Option C: NIP-90 DVM Publishing
 
-The frontend publishes a NIP-90 job request (kind 5905) describing the
-event to be published and the desired publish time. A DVM running on the
-user's own server (or a trusted one) picks up the job, signs the event at
-the right moment, and publishes it.
+The frontend or backend publishes a NIP-90 job request (kind 5905) with
+a future publish time. A DVM picks up the job, signs at the right moment,
+and publishes.
 
-- **Pros:** Fully decentralized. Uses NIP-90, which is already implemented
-  in `eventBuilder.ts`. The user can run the DVM on their own infrastructure.
-- **Cons:** Requires a DVM to be online and funded. Adds another moving
-  part to the publishing pipeline.
-- **Best for:** Users who want maximum sovereignty and are willing to
-  operate a DVM.
+- **Pros:** Uses NIP-90, which the scheduler already partially implements
+  (`buildDvmPublishRequest` in `eventBuilder.ts`). Fits the "public
+  utility" framing of Nostr infrastructure.
+- **Cons:** NIP-90 is currently marked **unrecommended** in the protocol
+  repository, with the note: *"this got totally out of control, prefer
+  use-case-specific microstandards."* The public DVM ecosystem is thin —
+  a handful of implementations (e.g., Dart `nostr_scheduler_dvm`) but
+  low adoption. A public DVM is a distribution channel, not a foundation.
+- **Best for:** Post-launch distribution. Not a v1 requirement.
+
+**Clarification on public vs private DVMs:** There is no "private DVM"
+concept in the protocol. A DVM is simply a pubkey watching relays for
+job requests. An operator can run one that only responds to their own
+jobs (effectively private) or announce it publicly via NIP-89. Most
+practical deployments today are effectively private — one operator,
+their own jobs. The protocol-level concept is public discovery; the
+practical reality is often single-tenant.
 
 ### Option D: Status Quo (Document the Limitation)
 
@@ -117,37 +144,62 @@ Keep the current architecture and document the constraint prominently.
 - **Pros:** Zero code change.
 - **Cons:** Scheduled posts continue to underperform. The feature is
   effectively "publish later, but with reduced reach."
-- **Best for:** Nothing. This is a non-solution, listed for completeness.
+- **Best for:** Nothing. Listed for completeness only.
 
 ## Recommendation
 
-The choice depends on the target user:
+**Adopt Option A (NIP-46 remote signing at publish time).**
 
-- **For Plebeian Market merchants:** Option B (delegated key) or Option A
-  (NIP-46), depending on the merchant's technical comfort and whether they
-  already run a signer.
-- **For users running their own infrastructure:** Option C (DVM) is the
-  most sovereign path and matches the "self-hostable" ethos of this project.
+Rationale:
 
-A hybrid approach is also viable: default to Option A when a NIP-46 signer
-is connected, fall back to Option B for users who opt in, and expose Option C
-as an advanced configuration.
+1. It is the only option that fully solves the `created_at` problem
+   without compromising key custody or requiring protocol changes.
+2. NIP-46 is a mature, actively used standard with multiple
+   implementations (nsec.app, Amber, Nostrify, NDK).
+3. It aligns with the project's sovereignty principle: keys stay with
+   the merchant, and the server never holds a signing capability.
+4. It preserves the existing architecture — the backend still stores
+   scheduled jobs and runs the publish timer; only the signing step
+   changes.
+
+**Productization path (in order):**
+
+1. **Ship the scheduler as an optional Plebeian Market tool.**
+   Merchants already want "post my jam Tuesday." Host it on the
+   Plebeian server. Charge zaps (or an optional monthly queue fee).
+   Self-hosters point the same UI at their own URL. Same Docker image,
+   two doors.
+2. **Add NIP-46 signing at publish time.** Merchants connect a bunker.
+   The job runner requests a signature when due, then publishes. No
+   nsec on disk, ever.
+3. **Only then announce a NIP-89 service for kind 5905.** The DVM is
+   how the rest of Nostr discovers the service. Hosted merchants never
+   need to know the word "DVM."
+
+**Do not hold merchants' nsec.** If Plebeian can post as them without
+asking, the platform has become a custodian — which contradicts the
+"your keys" principle and creates a security liability.
 
 ## Migration Path
 
 1. Add a `signing_mode` field to the scheduled event record
-   (`nip46` | `delegated` | `dvm` | `legacy`)
+   (`nip46` | `legacy`)
 2. For new posts, capture the mode at schedule time
 3. For existing posts, treat them as `legacy` and publish as-is
-4. Implement the chosen mode(s) in the backend publisher
-5. Document the trade-offs in the user-facing settings
+4. Implement the NIP-46 request flow in the backend publisher
+5. Add a "Connect Signer" step to the scheduler onboarding flow
+6. Document the auto-approve configuration in the user guide
 
 ## References
 
 - NIP-01: Basic protocol flow (event structure, `created_at` is signed)
-- NIP-46: Nostr remote signing (bunker)
+- NIP-07: Browser extension signing (interactive sessions)
+- NIP-26: Delegated event signing (not recommended)
+- NIP-46: Nostr remote signing (bunker) — **the recommended path**
 - NIP-65: Relay list metadata (outbox model)
-- NIP-90: Data Vending Machines
+- NIP-89: Recommended application handlers (DVM discovery)
+- NIP-90: Data Vending Machines (currently unrecommended)
+- Plebeian Signer: https://github.com/PlebeianApp/plebeian-signer (NIP-07)
 - Current implementation:
   - `src/lib/eventBuilder.ts` — event construction and signing
   - `src/hooks/useSchedulerPublish.ts` — client-side signing and publishing
@@ -158,4 +210,6 @@ as an advanced configuration.
 
 *This ADR was written in response to observed low engagement on scheduled
 posts. The root cause is that `created_at` is fixed at signing time, and
-relays, feeds, and notification systems all rely on `created_at` freshness.*
+relays, feeds, and notification systems all rely on `created_at` freshness.
+The recommended fix (NIP-46 remote signing at publish time) preserves the
+private key with the merchant while producing correctly-timestamped events.*
