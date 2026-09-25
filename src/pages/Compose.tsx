@@ -312,7 +312,7 @@ export default function Compose() {
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'NIP-46 schedule failed';
         toast({
-          title: 'Could not schedule with Amber',
+          title: 'Could not schedule with bunker',
           description: msg,
           variant: 'destructive',
         });

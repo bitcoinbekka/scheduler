@@ -29,7 +29,7 @@ export function SchedulerBunkerSettings() {
       toast({
         title: signAtFire ? 'Fire-time signing on' : 'Bunker saved',
         description: signAtFire
-          ? 'Scheduled notes will be signed by Amber at publish time. Keep the phone online.'
+          ? 'Scheduled notes will be signed by your bunker at publish time. Keep the bunker running.'
           : 'Saved on this device only. Not published to Nostr.',
       });
     } catch (err) {
@@ -60,21 +60,21 @@ export function SchedulerBunkerSettings() {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <KeyRound className="w-4 h-4" />
-          Sign at fire time (Amber / NIP-46)
+          Sign at fire time (NIP-46 bunker)
         </CardTitle>
         <CardDescription>
-          Optional. Paste a bunker:// URI from Amber. The scheduler asks Amber to sign
-          at publish time so created_at is now, not when you clicked Schedule.
-          Plebeian Signer stays NIP-07 for this website. The bunker URI never goes to Nostr
-          and is stored only on this device plus encrypted on your scheduler server.
+          Optional. Paste a bunker:// URI from Plebeian Bunker (recommended), nsec.app, or Amber.
+          The scheduler asks that bunker to sign at publish time so created_at is now,
+          not when you clicked Schedule. Plebeian Signer stays NIP-07 for this website.
+          The URI never goes to Nostr. It is stored on this device and encrypted on the scheduler server.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-1">
-            <Label htmlFor="sign-at-fire">Use Amber at fire time</Label>
+            <Label htmlFor="sign-at-fire">Sign at fire time</Label>
             <p className="text-xs text-muted-foreground">
-              Off = current behaviour (pre-sign now). On = unsigned template + Amber signs at 08:00.
+              Off = pre-sign now. On = unsigned template; your bunker signs at 08:00.
             </p>
           </div>
           <Switch
