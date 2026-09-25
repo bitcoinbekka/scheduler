@@ -146,6 +146,49 @@ Keep the current architecture and document the constraint prominently.
   effectively "publish later, but with reduced reach."
 - **Best for:** Nothing. Listed for completeness only.
 
+### Option E: Future-Dated Events (Relay-Side Scheduling) — REJECTED
+
+**Idea:** Sign the event with `created_at` set to the future publish
+time. Publish immediately. Let relays hold the event and release it
+when the timestamp arrives.
+
+**Why it sounds appealing:** One line of code. No signer needed. No
+NIP-46 bunker. No key custody trade-off. Just set `created_at` to the
+future instead of the present.
+
+**Why it does not work:**
+
+1. **Relays reject future-dated events by default.** A future-dated
+   event would appear at the top of every feed query until its
+   timestamp arrived, which breaks ordering for everyone else on
+   the relay. Relays protect themselves by rejecting anything with
+   a `created_at` beyond a small window.
+
+2. **NIP-22 (Event `created_at` Limits) is a draft, not a standard.**
+   It defines upper and lower bounds for acceptable timestamps and
+   is marked `draft` and `optional`. Most relays do not implement it.
+
+3. **strfry has a hard-coded limit.** The relay used in this
+   deployment (strfry) enforces `rejectEventsNewerThanSeconds = 900`
+   by default. Anything more than 15 minutes in the future is
+   rejected at the relay level, before any client sees it.
+
+4. **Merchants cannot control which relays their audience uses.**
+   Even if one relay supported future-dated events, the merchant's
+   followers might read from relays that do not. The post would be
+   visible to some and invisible to others, non-deterministically.
+
+5. **The "easy fix" is a protocol change, not a code change.** It
+   requires relay operators to implement new timestamp-handling
+   logic, agree on a window, and coordinate release timing. That is
+   not something an application can do on its own.
+
+**Conclusion:** Future-dated events are not a viable fix. They
+require a protocol feature that does not exist in practice. The
+only real options remain: sign at publish time (NIP-46), or accept
+that scheduled posts with presigned events have reduced reach.
+
+
 ## Recommendation
 
 **Adopt Option A (NIP-46 remote signing at publish time).**
