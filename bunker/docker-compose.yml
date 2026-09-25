@@ -1,0 +1,19 @@
+services:
+  bunker:
+    build: .
+    container_name: plebeian-bunker
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1879:1879"
+    environment:
+      PORT: "1879"
+      DATA_DIR: "/data"
+      RELAYS: "${RELAYS:-wss://relay.primal.net,wss://nos.lol,wss://relay.nostr.net,wss://relay.plebeian.market}"
+      AUTO_APPROVE_KINDS: "${AUTO_APPROVE_KINDS:-1,30023}"
+      BUNKER_NSEC: "${BUNKER_NSEC:-}"
+      BUNKER_SECRET: "${BUNKER_SECRET:-}"
+    volumes:
+      - bunker-data:/data
+
+volumes:
+  bunker-data:

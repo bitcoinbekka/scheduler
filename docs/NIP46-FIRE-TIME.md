@@ -9,9 +9,10 @@ Plebeian Signer stays **NIP-07** for this website. It is not a bunker.
 ## What you need
 
 1. Self-hosted scheduler (`server/`) with `BUNKER_STORE_KEY` set.
-2. Amber on your phone, bunker URI, auto-approve `sign_event` if you want
-   unattended fires.
-3. Phone online at publish time.
+2. A bunker that stays awake:
+   - **Plebeian Bunker** in `bunker/` (recommended). Docker on your VPS.
+   - or Amber / nsec.app if they actually answer.
+3. For Plebeian Bunker, the phone does not need to be on.
 
 ## Setup
 

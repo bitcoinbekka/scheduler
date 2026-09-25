@@ -43,9 +43,11 @@ In the app: **Settings → Scheduler Backend** → `https://scheduler.plebeian.z
 
 **Pre-sign (default).** Browser signs with NIP-07 (Plebeian Signer, nos2x, Alby) when you click Schedule. Server stores the signed event and publishes later. `created_at` is sign time.
 
-**Sign at fire time (optional).** Settings → paste an Amber `bunker://` URI → turn the switch on. Server stores an unsigned template and an encrypted bunker box. At the due time it sets `created_at` to now, asks Amber to sign, then publishes. Phone must be online. Set `BUNKER_STORE_KEY` on the server. See [docs/NIP46-FIRE-TIME.md](./docs/NIP46-FIRE-TIME.md).
+**Sign at fire time (optional).** Settings → paste a `bunker://` URI → turn the switch on. Server stores an unsigned template and an encrypted bunker box. At the due time it sets `created_at` to now, asks the bunker to sign, then publishes.
 
-Plebeian Signer stays **NIP-07** for the website. It is not a bunker. Amber (or nsec.app) is the always-on signer.
+Use **Plebeian Bunker** (`bunker/` in this repo) on your VPS, or Amber / nsec.app. The Chrome Signer stays NIP-07. It is not a bunker. See [bunker/README.md](./bunker/README.md) and [docs/NIP46-FIRE-TIME.md](./docs/NIP46-FIRE-TIME.md).
+
+Set `BUNKER_STORE_KEY` on the scheduler server so it can store the URI encrypted.
 
 ---
 
@@ -135,6 +137,7 @@ Netlify Functions + Blobs + cron-job.org still exist in `netlify/` as a leftover
 
 ```
 scheduler/
+├── bunker/                      # Always-on NIP-46 signer (Docker). DIY or later Pro.
 ├── server/                      # Self-hosted backend (Docker / Node)
 │   ├── scheduler-server.mjs
 │   ├── nip46-sign.mjs           # Amber fire-time signing
