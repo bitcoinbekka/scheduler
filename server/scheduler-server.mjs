@@ -33,7 +33,10 @@
  *
  * Run:  node scheduler-server.mjs
  */
+import WebSocket from 'ws';
+import { useWebSocketImplementation } from 'nostr-tools/pool';
 
+useWebSocketImplementation(WebSocket);
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
@@ -41,6 +44,17 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { encryptSecret, decryptSecret, hasBunkerStoreKey } from './secret-box.mjs';
 import { signEventWithBunker, redactBunkerUri } from './nip46-sign.mjs';
+
+// ─── Process-level safety net ─────────────────────────────────────
+// Some library errors (WebSocket close races in nostr-tools) surface as
+// uncaught exceptions. We log them and keep running so a single failed
+// publish does not crash the whole scheduler.
+process.on('uncaughtException', (err) => {
+  console.error('[Scheduler] Uncaught exception (ignored):', err?.message || err);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('[Scheduler] Unhandled rejection (ignored):', err?.message || err);
+});
 
 // ─── Config ───────────────────────────────────────────────────────
 
@@ -134,7 +148,11 @@ function publishToRelay(relayUrl, signedEvent, timeoutMs = 10_000) {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        try { ws.close(); } catch { /* ignore */ }
+        try {
+          // Swallow any error emitted during close, then close.
+          ws.on?.('error', () => {});
+          ws.close();
+        } catch { /* ignore */ }
         resolve(result);
       };
 

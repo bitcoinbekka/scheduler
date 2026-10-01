@@ -34,6 +34,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { NotePreview } from './NotePreview';
 
 interface MarkdownEditorProps {
   value: string;
@@ -71,73 +72,6 @@ const TOOLBAR_ACTIONS: ToolbarAction[] = [
   { icon: FileCode, label: 'Code block', action: 'wrap', before: '\n```\n', after: '\n```\n', group: 'block' },
 ];
 
-/** Simple markdown to HTML for preview — handles basic syntax */
-function renderMarkdownPreview(md: string): string {
-  let html = md
-    // Escape HTML
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-
-  // Code blocks (must be first to avoid inner processing)
-  html = html.replace(/```([\s\S]*?)```/g, (_match, code) => {
-    return `<pre class="bg-muted rounded-lg p-4 overflow-x-auto text-sm font-mono my-4"><code>${code.trim()}</code></pre>`;
-  });
-
-  // Headings
-  html = html.replace(/^### (.+)$/gm, '<h3 class="text-lg font-bold mt-6 mb-2">$1</h3>');
-  html = html.replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold mt-8 mb-3">$1</h2>');
-  html = html.replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold mt-8 mb-4">$1</h1>');
-
-  // Horizontal rules
-  html = html.replace(/^---$/gm, '<hr class="my-6 border-border" />');
-
-  // Blockquotes
-  html = html.replace(/^&gt; (.+)$/gm, '<blockquote class="border-l-4 border-primary/30 pl-4 py-1 my-3 text-muted-foreground italic">$1</blockquote>');
-
-  // Bold + Italic
-  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-  // Bold
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  // Italic
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  // Strikethrough
-  html = html.replace(/~~(.+?)~~/g, '<del class="text-muted-foreground">$1</del>');
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code class="bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-primary">$1</code>');
-
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary underline underline-offset-2 hover:text-primary/80" target="_blank" rel="noopener noreferrer">$1</a>');
-
-  // Images
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="rounded-lg my-4 max-w-full" />');
-
-  // Nostr mentions (nostr:npub1...)
-html = html.replace(/nostr:(npub1[a-z0-9]{6})[a-z0-9]+/g, '<span class="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded-full text-sm font-medium">@$1…</span>');
-
-  // Unordered list items
-  html = html.replace(/^- (.+)$/gm, '<li class="ml-4 list-disc">$1</li>');
-  // Ordered list items
-  html = html.replace(/^\d+\. (.+)$/gm, '<li class="ml-4 list-decimal">$1</li>');
-
-  // Wrap consecutive <li> in <ul> or <ol>
-  html = html.replace(/((?:<li class="ml-4 list-disc">.*<\/li>\n?)+)/g, '<ul class="my-3 space-y-1">$1</ul>');
-  html = html.replace(/((?:<li class="ml-4 list-decimal">.*<\/li>\n?)+)/g, '<ol class="my-3 space-y-1">$1</ol>');
-
-  // Paragraphs (double newlines)
-  html = html
-    .split('\n\n')
-    .map(block => {
-      const trimmed = block.trim();
-      if (!trimmed) return '';
-      // Don't wrap blocks that are already HTML elements
-      if (/^<(h[1-6]|pre|blockquote|ul|ol|hr|div|img)/.test(trimmed)) return trimmed;
-      return `<p class="my-2 leading-relaxed">${trimmed.replace(/\n/g, '<br />')}</p>`;
-    })
-    .join('\n');
-
-  return html;
-}
 
 export function MarkdownEditor({ value, onChange, placeholder, className, onUploadImage }: MarkdownEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -504,10 +438,7 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
       {showPreview ? (
         <div className="p-6 min-h-[450px] max-h-[70vh] overflow-y-auto">
           {value.trim() ? (
-            <div
-              className="prose prose-sm dark:prose-invert max-w-none"
-              dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(value) }}
-            />
+            <NotePreview markdown={value} className="prose prose-sm dark:prose-invert max-w-none" />
           ) : (
             <p className="text-muted-foreground italic text-sm">Nothing to preview yet...</p>
           )}

@@ -11,6 +11,13 @@ import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, existsSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
+
+// Fix for Node 22 native WebSocket recursion bug (must come before nostr-tools/pool)
+import WebSocket from 'ws';
+import { useWebSocketImplementation } from 'nostr-tools/pool';
+
+useWebSocketImplementation(WebSocket);
+
 import { generateSecretKey, getPublicKey, finalizeEvent } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import { decode as nip19decode } from 'nostr-tools/nip19';
@@ -19,7 +26,7 @@ import { handleRpc, parseAutoKinds, toBunkerUri, redactBunkerUri } from './proto
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const HTTP_PORT = parseInt(process.env.PORT || '1879', 10);
-const RELAYS = (process.env.RELAYS || 'wss://relay.primal.net,wss://nos.lol,wss://relay.nostr.net,wss://relay.plebeian.market')
+const RELAYS = (process.env.RELAYS || 'wss://relay.plebeian.build')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);

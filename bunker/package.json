@@ -1,8 +1,9 @@
 {
   "name": "plebeian-bunker",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Always-on NIP-46 remote signer for Plebeian Scheduler. DIY or hosted. Does not store keys in the scheduler.",
+  "description": "Plebeian Bunker — always-on NIP-46 signer for the Plebeian Scheduler.",
   "license": "GPL-3.0",
   "engines": {
     "node": ">=22.5.0"
@@ -12,6 +13,7 @@
     "test": "node --test protocol.test.mjs"
   },
   "dependencies": {
+    "ws": "^8.18.0",
     "nostr-tools": "^2.13.0"
   }
 }

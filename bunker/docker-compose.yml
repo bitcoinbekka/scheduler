@@ -8,7 +8,7 @@ services:
     environment:
       PORT: "1879"
       DATA_DIR: "/data"
-      RELAYS: "${RELAYS:-wss://relay.primal.net,wss://nos.lol,wss://relay.nostr.net,wss://relay.plebeian.market}"
+      RELAYS: "${RELAYS:-wss://relay.plebeian.build}"
       AUTO_APPROVE_KINDS: "${AUTO_APPROVE_KINDS:-1,30023}"
       BUNKER_NSEC: "${BUNKER_NSEC:-}"
       BUNKER_SECRET: "${BUNKER_SECRET:-}"

@@ -12,6 +12,7 @@
     "start": "node scheduler-server.mjs"
   },
   "dependencies": {
+    "ws": "^8.18.0",
     "nostr-tools": "^2.13.0"
   }
 }
