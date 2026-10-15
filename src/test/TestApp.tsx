@@ -23,6 +23,9 @@ export function TestApp({ children }: TestAppProps) {
 
   const defaultConfig: AppConfig = {
     theme: 'light',
+    accentColor: 'rose',
+    editorFont: 'sans',
+    schedulerBackendUrl: '',
     relayMetadata: {
       relays: [
         { url: 'wss://relay.primal.net', read: true, write: true },

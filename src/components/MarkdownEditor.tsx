@@ -15,9 +15,10 @@ import {
   Minus,
   AtSign,
   Eye,
-  EyeOff,
-  Undo2,
   FileCode,
+  Pencil,
+  Columns2,
+  WandSparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -33,8 +34,12 @@ import {
 } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MarkdownPreview } from '@/components/MarkdownPreview';
+import { MentionLookup } from '@/components/MentionLookup';
+import { cleanPastedMarkdown, markdownFromPaste, pasteNeedsClean } from '@/lib/articlePaste';
+import { parsePubkeyInput } from '@/lib/npub';
+import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
-import { NotePreview } from './NotePreview';
 
 interface MarkdownEditorProps {
   value: string;
@@ -57,6 +62,8 @@ interface ToolbarAction {
   group?: string;
 }
 
+type EditorView = 'write' | 'split' | 'preview';
+
 const TOOLBAR_ACTIONS: ToolbarAction[] = [
   { icon: Heading1, label: 'Heading 1', shortcut: 'Ctrl+1', action: 'prefix', prefix: '# ', group: 'heading' },
   { icon: Heading2, label: 'Heading 2', shortcut: 'Ctrl+2', action: 'prefix', prefix: '## ', group: 'heading' },
@@ -72,29 +79,38 @@ const TOOLBAR_ACTIONS: ToolbarAction[] = [
   { icon: FileCode, label: 'Code block', action: 'wrap', before: '\n```\n', after: '\n```\n', group: 'block' },
 ];
 
+const FONT_CLASS: Record<string, string> = {
+  sans: 'font-ui',
+  serif: 'font-article',
+  mono: 'font-mono',
+};
 
 export function MarkdownEditor({ value, onChange, placeholder, className, onUploadImage }: MarkdownEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const [showPreview, setShowPreview] = useState(false);
+  const [view, setView] = useState<EditorView>('split');
   const [linkPopoverOpen, setLinkPopoverOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
   const [mentionPopoverOpen, setMentionPopoverOpen] = useState(false);
   const [mentionNpub, setMentionNpub] = useState('');
   const [imageUploading, setImageUploading] = useState(false);
+  const { editorFont } = useTheme();
+  const fontClass = FONT_CLASS[editorFont] ?? FONT_CLASS.sans;
+  const editing = view === 'write' || view === 'split';
 
-  /** Insert text at the current cursor position */
   const insertAtCursor = useCallback((textToInsert: string) => {
     const ta = textareaRef.current;
-    if (!ta) return;
+    if (!ta) {
+      onChange(value + textToInsert);
+      return;
+    }
 
     const start = ta.selectionStart;
     const end = ta.selectionEnd;
     const newValue = value.slice(0, start) + textToInsert + value.slice(end);
     onChange(newValue);
 
-    // Restore cursor position after the insertion
     requestAnimationFrame(() => {
       ta.focus();
       const newPos = start + textToInsert.length;
@@ -102,7 +118,6 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
     });
   }, [value, onChange]);
 
-  /** Wrap selected text with before/after markers */
   const wrapSelection = useCallback((before: string, after: string) => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -110,30 +125,26 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
     const start = ta.selectionStart;
     const end = ta.selectionEnd;
     const selected = value.slice(start, end);
-    const placeholder = selected || 'text';
-    const wrapped = before + placeholder + after;
+    const placeholderText = selected || 'text';
+    const wrapped = before + placeholderText + after;
     const newValue = value.slice(0, start) + wrapped + value.slice(end);
     onChange(newValue);
 
     requestAnimationFrame(() => {
       ta.focus();
       if (!selected) {
-        // Select the placeholder text
-        ta.setSelectionRange(start + before.length, start + before.length + placeholder.length);
+        ta.setSelectionRange(start + before.length, start + before.length + placeholderText.length);
       } else {
-        // Place cursor after the wrap
         ta.setSelectionRange(start + wrapped.length, start + wrapped.length);
       }
     });
   }, [value, onChange]);
 
-  /** Add a prefix to the current line */
   const prefixLine = useCallback((prefix: string) => {
     const ta = textareaRef.current;
     if (!ta) return;
 
     const start = ta.selectionStart;
-    // Find the start of the current line
     const lineStart = value.lastIndexOf('\n', start - 1) + 1;
     const newValue = value.slice(0, lineStart) + prefix + value.slice(lineStart);
     onChange(newValue);
@@ -144,7 +155,6 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
     });
   }, [value, onChange]);
 
-  /** Execute a toolbar action */
   const executeAction = useCallback((action: ToolbarAction) => {
     switch (action.action) {
       case 'wrap':
@@ -159,8 +169,13 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
     }
   }, [wrapSelection, prefixLine, insertAtCursor]);
 
-  /** Handle keyboard shortcuts */
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      insertAtCursor('  ');
+      return;
+    }
+
     if (!e.ctrlKey && !e.metaKey) return;
 
     const key = e.key.toLowerCase();
@@ -189,19 +204,27 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
       handled = true;
     }
 
-    // Tab inserts 2 spaces instead of switching focus
-    if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      insertAtCursor('  ');
-      handled = true;
-    }
-
     if (handled) {
       e.preventDefault();
     }
   }, [wrapSelection, prefixLine, insertAtCursor]);
 
-  /** Insert a link */
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const html = e.clipboardData.getData('text/html') || '';
+    const text = e.clipboardData.getData('text/plain') || '';
+    if (!pasteNeedsClean(html, text)) return;
+
+    const md = markdownFromPaste(html, text);
+    if (!md) return;
+    e.preventDefault();
+    insertAtCursor(md);
+  }, [insertAtCursor]);
+
+  const handleCleanPaste = useCallback(() => {
+    const cleaned = cleanPastedMarkdown(value);
+    if (cleaned !== value) onChange(cleaned);
+  }, [value, onChange]);
+
   const handleInsertLink = useCallback(() => {
     if (!linkUrl.trim()) return;
     const text = linkText.trim() || linkUrl.trim();
@@ -211,7 +234,6 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
     setLinkPopoverOpen(false);
   }, [linkUrl, linkText, insertAtCursor]);
 
-  /** Upload an image and insert markdown at cursor */
   const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !onUploadImage) return;
@@ -228,21 +250,17 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
     }
   }, [onUploadImage, insertAtCursor]);
 
-  /** Insert a nostr mention */
-  const handleInsertMention = useCallback(() => {
-    const npub = mentionNpub.trim();
-    if (!npub) return;
-    // NIP-27: nostr: URI for inline mentions
-    const mention = npub.startsWith('npub1') ? `nostr:${npub}` : `nostr:${npub}`;
-    insertAtCursor(mention);
+  const handleInsertMention = useCallback((npub: string) => {
+    const parsed = parsePubkeyInput(npub);
+    if (!parsed) return;
+    insertAtCursor(`nostr:${parsed.npub}`);
     setMentionNpub('');
     setMentionPopoverOpen(false);
-  }, [mentionNpub, insertAtCursor]);
+  }, [insertAtCursor]);
 
   const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
 
-  // Group actions for rendering with separators
   const groups: { group: string; actions: ToolbarAction[] }[] = [];
   for (const action of TOOLBAR_ACTIONS) {
     const existing = groups.find(g => g.group === (action.group || ''));
@@ -254,8 +272,7 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
   }
 
   return (
-    <div className={cn('rounded-lg border bg-card overflow-hidden', className)}>
-      {/* Toolbar */}
+    <div className={cn('rounded-xl border bg-card overflow-hidden shadow-sm', className)}>
       <div className="flex items-center gap-0.5 px-2 py-1.5 border-b bg-muted/30 flex-wrap">
         {groups.map((group, gi) => (
           <div key={group.group} className="flex items-center gap-0.5">
@@ -271,7 +288,7 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
                       size="icon"
                       className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-secondary"
                       onClick={() => executeAction(action)}
-                      disabled={showPreview}
+                      disabled={!editing}
                     >
                       <Icon className="w-4 h-4" />
                     </Button>
@@ -288,7 +305,6 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 
-        {/* Link button */}
         <Popover open={linkPopoverOpen} onOpenChange={setLinkPopoverOpen}>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -298,7 +314,7 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
                   variant="ghost"
                   size="icon"
                   className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  disabled={showPreview}
+                  disabled={!editing}
                 >
                   <Link2 className="w-4 h-4" />
                 </Button>
@@ -337,7 +353,6 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
           </PopoverContent>
         </Popover>
 
-        {/* Image upload + insert */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -345,7 +360,7 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
               variant="ghost"
               size="icon"
               className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-secondary"
-              disabled={showPreview || imageUploading}
+              disabled={!editing || imageUploading}
               onClick={() => {
                 if (onUploadImage) {
                   imageInputRef.current?.click();
@@ -373,7 +388,6 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
           onChange={handleImageUpload}
         />
 
-        {/* Mention button */}
         <Popover open={mentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -383,7 +397,7 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
                   variant="ghost"
                   size="icon"
                   className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  disabled={showPreview}
+                  disabled={!editing}
                 >
                   <AtSign className="w-4 h-4" />
                 </Button>
@@ -391,83 +405,107 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs">Mention npub</TooltipContent>
           </Tooltip>
-          <PopoverContent className="w-80 space-y-3" align="start">
-            <p className="text-sm font-medium">Mention a Nostr user</p>
-            <div>
-              <Label className="text-xs">npub or hex pubkey</Label>
-              <Input
-                placeholder="npub1..."
-                value={mentionNpub}
-                onChange={e => setMentionNpub(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleInsertMention(); }}
-                className="mt-1 font-mono text-xs"
-              />
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              Inserts a nostr: URI mention that Nostr clients will render as a profile link.
-            </p>
-            <Button onClick={handleInsertMention} size="sm" className="w-full" disabled={!mentionNpub.trim()}>
-              Insert mention
-            </Button>
+          <PopoverContent className="w-80" align="start">
+            <MentionLookup
+              value={mentionNpub}
+              onChange={setMentionNpub}
+              onInsert={handleInsertMention}
+            />
           </PopoverContent>
         </Popover>
 
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* Preview toggle */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               type="button"
-              variant={showPreview ? 'secondary' : 'ghost'}
+              variant="ghost"
               size="icon"
-              className="w-8 h-8"
-              onClick={() => setShowPreview(!showPreview)}
+              className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-secondary"
+              disabled={!value.trim()}
+              onClick={handleCleanPaste}
             >
-              {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              <WandSparkles className="w-4 h-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs">
-            {showPreview ? 'Back to editor' : 'Preview'}
+            Clean pasted markdown
           </TooltipContent>
         </Tooltip>
+
+        <div className="flex-1" />
+
+        <div className="flex items-center rounded-md border bg-background p-0.5">
+          {([
+            { id: 'write' as const, icon: Pencil, label: 'Write' },
+            { id: 'split' as const, icon: Columns2, label: 'Split' },
+            { id: 'preview' as const, icon: Eye, label: 'Preview' },
+          ]).map(opt => (
+            <Tooltip key={opt.id}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant={view === opt.id ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="w-7 h-7"
+                  onClick={() => setView(opt.id)}
+                >
+                  <opt.icon className="w-3.5 h-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">{opt.label}</TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
       </div>
 
-      {/* Editor / Preview */}
-      {showPreview ? (
-        <div className="p-6 min-h-[450px] max-h-[70vh] overflow-y-auto">
-          {value.trim() ? (
-            <NotePreview markdown={value} className="prose prose-sm dark:prose-invert max-w-none" />
-          ) : (
-            <p className="text-muted-foreground italic text-sm">Nothing to preview yet...</p>
-          )}
-        </div>
-      ) : (
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className={cn(
-            'w-full min-h-[450px] max-h-[70vh] p-6 resize-y text-[15px] leading-relaxed',
-            'bg-transparent border-0 outline-none focus:ring-0',
-            'placeholder:text-muted-foreground/40',
-            'font-sans',
-          )}
-          spellCheck
-        />
-      )}
+      <div
+        className={cn(
+          'grid overflow-hidden',
+          view === 'split' ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1',
+        )}
+      >
+        {editing && (
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            placeholder={placeholder}
+            className={cn(
+              'w-full min-h-[280px] lg:min-h-[480px] max-h-[70vh] p-6 resize-y text-[15px] leading-relaxed',
+              'bg-transparent border-0 outline-none focus:ring-0',
+              'placeholder:text-muted-foreground/40',
+              view === 'split' && 'lg:border-r lg:max-h-[70vh]',
+              fontClass,
+            )}
+            spellCheck
+          />
+        )}
 
-      {/* Footer stats */}
+        {(view === 'preview' || view === 'split') && (
+          <div
+            className={cn(
+              'min-h-[280px] lg:min-h-[480px] max-h-[70vh] overflow-y-auto p-6',
+              view === 'split' && 'bg-muted/10 border-t lg:border-t-0',
+              fontClass,
+            )}
+          >
+            {view === 'split' && (
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-3">Preview</p>
+            )}
+            <MarkdownPreview content={value} />
+          </div>
+        )}
+      </div>
+
       <div className="flex items-center justify-between px-4 py-2 border-t bg-muted/20 text-[11px] text-muted-foreground">
         <div className="flex items-center gap-4">
           <span>{value.length} chars</span>
           <span>{wordCount} words</span>
           <span>~{readingTime} min read</span>
         </div>
-        <span className="opacity-60">Markdown · NIP-23</span>
+        <span className="opacity-60">Paste from Substack is cleaned automatically · Markdown · NIP-23</span>
       </div>
     </div>
   );

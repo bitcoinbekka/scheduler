@@ -23,6 +23,8 @@ export default {
 				sans: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
 				mono: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
 				display: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
+				ui: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+				article: ['Georgia', 'Iowan Old Style', 'Palatino Linotype', 'Palatino', 'serif'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',

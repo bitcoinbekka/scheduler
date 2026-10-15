@@ -82,6 +82,22 @@
     --sidebar-border: 0 0% 12%;
     --sidebar-ring: 334 100% 58%;
   }
+
+  html[data-accent="orange"] {
+    --primary: 16 100% 56%;
+    --accent: 16 90% 48%;
+    --ring: 16 100% 56%;
+    --sidebar-primary: 16 100% 56%;
+    --sidebar-ring: 16 100% 56%;
+  }
+
+  html[data-accent="green"] {
+    --primary: 152 50% 36%;
+    --accent: 152 45% 32%;
+    --ring: 152 50% 36%;
+    --sidebar-primary: 152 50% 36%;
+    --sidebar-ring: 152 50% 36%;
+  }
 }
 
 @layer base {
@@ -124,6 +140,6 @@
 
 /* Plebeian dot pattern background */
 .plebeian-dots {
-  background-image: radial-gradient(circle, hsl(334 100% 58% / 0.12) 1px, transparent 1px);
+  background-image: radial-gradient(circle, hsl(var(--primary) / 0.12) 1px, transparent 1px);
   background-size: 16px 16px;
 }

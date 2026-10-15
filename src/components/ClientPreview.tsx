@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Smartphone } from 'lucide-react';
+import { nip19 } from 'nostr-tools';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { NostrMention } from '@/components/NostrMention';
+import { isLeftoverBracketLine, matchStandaloneImage } from '@/lib/articlePaste';
 import { cn } from '@/lib/utils';
 import type { NostrMetadata } from '@nostrify/nostrify';
 
@@ -45,46 +48,70 @@ const CLIENT_CONFIG: Record<ClientType, { name: string; bg: string; text: string
   },
 };
 
+type Segment = { type: 'text'; value: string } | { type: 'image'; value: string; alt: string };
+
 /** Parse content into segments of text and image URLs */
-function parseContent(content: string, images: string[]): { type: 'text' | 'image'; value: string }[] {
+function parseContent(content: string, images: string[]): Segment[] {
   if (!content.trim() && images.length === 0) return [];
 
-  const segments: { type: 'text' | 'image'; value: string }[] = [];
-  const urlRegex = /(https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp|svg)(?:\?\S*)?)/gi;
+  const segments: Segment[] = [];
   const lines = content.split('\n');
   const usedUrls = new Set<string>();
 
   for (const line of lines) {
     const trimmed = line.trim();
-    // Check if this line is just an image URL
-    const match = trimmed.match(urlRegex);
-    if (match && match[0] === trimmed) {
-      segments.push({ type: 'image', value: trimmed });
-      usedUrls.add(trimmed);
+    if (isLeftoverBracketLine(trimmed)) continue;
+
+    const img = matchStandaloneImage(trimmed);
+    if (img) {
+      segments.push({ type: 'image', value: img.src, alt: img.alt || 'Image' });
+      usedUrls.add(img.src);
     } else if (trimmed) {
       segments.push({ type: 'text', value: line });
     }
   }
 
-  // Add any images not already in content
   for (const img of images) {
     if (!usedUrls.has(img)) {
-      segments.push({ type: 'image', value: img });
+      segments.push({ type: 'image', value: img, alt: 'Image' });
     }
   }
 
   return segments;
 }
 
-/** Render hashtags with color */
-function renderText(text: string, accentClass: string) {
-  // Split on hashtags and URLs
-  return text.split(/(#\w+|https?:\/\/\S+)/g).map((part, i) => {
+/** Render hashtags, links, and nostr:npub mentions as @profile names */
+function renderText(text: string, accentClass: string): ReactNode[] {
+  const token = /(nostr:(?:npub1|nprofile1)[023456789acdefghjklmnpqrstuvwxyz]+|#\w+|https?:\/\/\S+)/gi;
+  return text.split(token).map((part, i) => {
+    if (!part) return null;
+    if (part.startsWith('nostr:npub1') || part.startsWith('nostr:nprofile1')) {
+      try {
+        const decoded = nip19.decode(part.slice('nostr:'.length));
+        const pubkey = decoded.type === 'npub'
+          ? decoded.data
+          : decoded.type === 'nprofile'
+            ? decoded.data.pubkey
+            : null;
+        if (pubkey) {
+          return (
+            <NostrMention
+              key={i}
+              pubkey={pubkey}
+              as="span"
+              className={cn(accentClass, 'hover:underline')}
+            />
+          );
+        }
+      } catch {
+        // fall through and show the raw token
+      }
+    }
     if (part.startsWith('#')) {
       return <span key={i} className={accentClass}>{part}</span>;
     }
     if (part.startsWith('http')) {
-      return <span key={i} className={cn(accentClass, 'underline underline-offset-2')}>{part}</span>;
+      return <span key={i} className={cn(accentClass, 'underline underline-offset-2 break-all')}>{part}</span>;
     }
     return <span key={i}>{part}</span>;
   });
@@ -180,7 +207,7 @@ export function ClientPreview({ content, images, metadata, className }: ClientPr
                         <div key={i} className="rounded-lg overflow-hidden border border-white/10">
                           <img
                             src={seg.value}
-                            alt=""
+                            alt={seg.alt}
                             className="w-full h-auto max-h-48 object-cover"
                           />
                         </div>

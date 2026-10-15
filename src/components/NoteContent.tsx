@@ -2,8 +2,7 @@ import { useMemo } from 'react';
 import { type NostrEvent } from '@nostrify/nostrify';
 import { Link } from 'react-router-dom';
 import { nip19 } from 'nostr-tools';
-import { useAuthor } from '@/hooks/useAuthor';
-import { genUserName } from '@/lib/genUserName';
+import { NostrMention } from '@/components/NostrMention';
 import { cn } from '@/lib/utils';
 
 interface NoteContentProps {
@@ -116,27 +115,5 @@ export function NoteContent({
     <div className={cn("whitespace-pre-wrap break-words", className)}>
       {content.length > 0 ? content : event.content}
     </div>
-  );
-}
-
-// Helper component to display user mentions
-function NostrMention({ pubkey }: { pubkey: string }) {
-  const author = useAuthor(pubkey);
-  const npub = nip19.npubEncode(pubkey);
-  const hasRealName = !!author.data?.metadata?.name;
-  const displayName = author.data?.metadata?.name ?? genUserName(pubkey);
-
-  return (
-    <Link 
-      to={`/${npub}`}
-      className={cn(
-        "font-medium hover:underline",
-        hasRealName 
-          ? "text-blue-500" 
-          : "text-gray-500 hover:text-gray-700"
-      )}
-    >
-      @{displayName}
-    </Link>
   );
 }

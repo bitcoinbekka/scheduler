@@ -1,6 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { useSeoMeta } from '@unhead/react';
-import { nip19 } from 'nostr-tools';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Save,
@@ -36,7 +35,6 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Label } from '@/components/ui/label';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,8 +51,9 @@ import { ClientPreview } from '@/components/ClientPreview';
 import { ListingBrowser, type CampaignListing } from '@/components/ListingBrowser';
 import { AiGenerateDialog } from '@/components/AiGenerateDialog';
 import { MarkdownEditor } from '@/components/MarkdownEditor';
+import { MentionLookup } from '@/components/MentionLookup';
 import { TimePicker } from '@/components/TimePicker';
-import { NoteContent } from '@/components/NoteContent';
+import { parsePubkeyInput } from '@/lib/npub';
 import { useScheduler } from '@/contexts/SchedulerContext';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAuthor } from '@/hooks/useAuthor';
@@ -155,21 +154,13 @@ export default function Compose() {
 
   /** Insert a nostr: mention at the cursor position in the short note textarea */
   const handleInsertMention = useCallback((npubOrHex: string) => {
-    const input = npubOrHex.trim();
-    if (!input) return;
-
-    // Normalize to npub format for the nostr: URI
-    let npub = input;
-    if (!input.startsWith('npub1')) {
-      try {
-        npub = nip19.npubEncode(input);
-      } catch {
-        // If it's not valid hex, try using as-is
-        npub = input;
-      }
+    const parsed = parsePubkeyInput(npubOrHex);
+    if (!parsed) {
+      toast({ title: 'Invalid npub', description: 'Paste an npub, nprofile, or hex pubkey.', variant: 'destructive' });
+      return;
     }
 
-    const mention = `nostr:${npub}`;
+    const mention = `nostr:${parsed.npub}`;
     const ta = noteTextareaRef.current;
     if (ta) {
       const start = ta.selectionStart;
@@ -566,8 +557,6 @@ export default function Compose() {
     );
   }
 
-  const currentType = POST_TYPES.find(t => t.value === post.postType) ?? POST_TYPES[0];
-
   return (
     <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 animate-fade-in">
       {/* Header */}
@@ -835,7 +824,7 @@ export default function Compose() {
           <MarkdownEditor
             value={post.content}
             onChange={val => updateField('content', val)}
-            placeholder="Start writing your article...\n\nUse the toolbar above for formatting, or write Markdown directly. Keyboard shortcuts: Ctrl+B for bold, Ctrl+I for italic, Ctrl+K for links."
+            placeholder="Start writing your article, or paste from Substack.\n\nImages, links, and leftover brackets are cleaned on paste. Use @ to tag an npub — the preview shows their profile name.\n\nKeyboard shortcuts: Ctrl+B bold, Ctrl+I italic, Ctrl+K link."
             onUploadImage={async (file) => {
               if (!user) throw new Error('Must be logged in');
 
@@ -978,37 +967,12 @@ export default function Compose() {
                       </TooltipTrigger>
                       <TooltipContent className="text-xs">Tag a Nostr user</TooltipContent>
                     </Tooltip>
-                    <PopoverContent className="w-80 space-y-3" align="start" side="top">
-                      <div>
-                        <p className="text-sm font-medium">Tag a Nostr user</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                          They'll be notified when your post is published
-                        </p>
-                      </div>
-                      <div>
-                        <Label className="text-xs">npub or hex pubkey</Label>
-                        <Input
-                          placeholder="npub1... or paste a hex pubkey"
-                          value={mentionInput}
-                          onChange={e => setMentionInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleInsertMention(mentionInput);
-                            }
-                          }}
-                          className="mt-1 font-mono text-xs"
-                          autoFocus
-                        />
-                      </div>
-                      <Button
-                        onClick={() => handleInsertMention(mentionInput)}
-                        size="sm"
-                        className="w-full"
-                        disabled={!mentionInput.trim()}
-                      >
-                        Insert @mention
-                      </Button>
+                    <PopoverContent className="w-80" align="start" side="top">
+                      <MentionLookup
+                        value={mentionInput}
+                        onChange={setMentionInput}
+                        onInsert={handleInsertMention}
+                      />
                     </PopoverContent>
                   </Popover>
                 </div>
@@ -1028,6 +992,7 @@ export default function Compose() {
       )}
 
       {/* ===== MEDIA / IMAGE ATTACHMENTS ===== */}
+      {post.postType !== 'long' && (
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -1047,6 +1012,7 @@ export default function Compose() {
           />
         </CardContent>
       </Card>
+      )}
 
       {/* ===== HASHTAG INPUT + SUGGESTIONS ===== */}
       {post.postType !== 'long' && (

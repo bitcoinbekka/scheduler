@@ -35,6 +35,8 @@ const queryClient = new QueryClient({
 
 const defaultConfig: AppConfig = {
   theme: "light",
+  accentColor: "rose",
+  editorFont: "sans",
   // Empty = use the built-in same-origin Netlify function.
   // Merchants self-hosting can override this in Settings to point at their own server.
   schedulerBackendUrl: "",

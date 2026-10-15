@@ -1,6 +1,8 @@
 import { createContext } from "react";
 
 export type Theme = "dark" | "light" | "system";
+export type AccentColor = "rose" | "orange" | "green";
+export type EditorFont = "sans" | "serif" | "mono";
 
 export interface RelayMetadata {
   /** List of relays with read/write permissions */
@@ -12,6 +14,10 @@ export interface RelayMetadata {
 export interface AppConfig {
   /** Current theme */
   theme: Theme;
+  /** Accent used for buttons, links, and highlights. Optional so older saved configs still parse. */
+  accentColor?: AccentColor;
+  /** Font used in the article editor and preview. */
+  editorFont?: EditorFont;
   /** NIP-65 relay list metadata */
   relayMetadata: RelayMetadata;
   /**
