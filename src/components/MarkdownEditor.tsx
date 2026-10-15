@@ -95,7 +95,7 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
   const [mentionPopoverOpen, setMentionPopoverOpen] = useState(false);
   const [mentionNpub, setMentionNpub] = useState('');
   const [imageUploading, setImageUploading] = useState(false);
-  const { editorFont } = useTheme();
+  const { editorFont, setEditorFont } = useTheme();
   const fontClass = FONT_CLASS[editorFont] ?? FONT_CLASS.sans;
   const editing = view === 'write' || view === 'split';
 
@@ -433,6 +433,32 @@ export function MarkdownEditor({ value, onChange, placeholder, className, onUplo
         </Tooltip>
 
         <div className="flex-1" />
+
+        <div className="flex items-center rounded-md border bg-background p-0.5">
+          {([
+            { id: 'sans' as const, label: 'Sans', className: 'font-ui' },
+            { id: 'serif' as const, label: 'Serif', className: 'font-article' },
+            { id: 'mono' as const, label: 'Mono', className: 'font-mono' },
+          ]).map(opt => (
+            <Tooltip key={opt.id}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant={editorFont === opt.id ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className={cn('h-7 px-2 text-[11px]', opt.className)}
+                  aria-label={`Article font: ${opt.label}`}
+                  onClick={() => setEditorFont(opt.id)}
+                >
+                  Aa
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                Article font: {opt.label}
+              </TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
 
         <div className="flex items-center rounded-md border bg-background p-0.5">
           {([

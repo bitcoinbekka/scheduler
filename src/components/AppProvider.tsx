@@ -1,7 +1,8 @@
 import { ReactNode, useEffect } from 'react';
 import { z } from 'zod';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { AppContext, type AppConfig, type AppContextType, type Theme, type AccentColor, type RelayMetadata } from '@/contexts/AppContext';
+import { AppContext, type AppConfig, type AppContextType, type Theme, type RelayMetadata } from '@/contexts/AppContext';
+import { LOOK_IDS, resolveLook, type Look } from '@/lib/looks';
 
 interface AppProviderProps {
   children: ReactNode;
@@ -24,6 +25,7 @@ const RelayMetadataSchema = z.object({
 // Zod schema for AppConfig validation
 const AppConfigSchema = z.object({
   theme: z.enum(['dark', 'light', 'system']),
+  look: z.enum(LOOK_IDS).optional(),
   accentColor: z.enum(['rose', 'orange', 'green']).optional(),
   editorFont: z.enum(['sans', 'serif', 'mono']).optional(),
   relayMetadata: RelayMetadataSchema,
@@ -67,7 +69,7 @@ export function AppProvider(props: AppProviderProps) {
     updateConfig,
   };
 
-  useApplyTheme(config.theme, config.accentColor ?? 'rose');
+  useApplyTheme(config.theme, resolveLook(config.look, config.accentColor));
 
   return (
     <AppContext.Provider value={appContextValue}>
@@ -79,12 +81,13 @@ export function AppProvider(props: AppProviderProps) {
 /**
  * Hook to apply theme changes to the document root
  */
-function useApplyTheme(theme: Theme, accentColor: AccentColor) {
+function useApplyTheme(theme: Theme, look: Look) {
   useEffect(() => {
     const root = window.document.documentElement;
 
     root.classList.remove('light', 'dark');
-    root.dataset.accent = accentColor;
+    root.dataset.look = look;
+    delete root.dataset.accent;
 
     if (theme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
@@ -97,7 +100,7 @@ function useApplyTheme(theme: Theme, accentColor: AccentColor) {
     }
 
     root.classList.add(theme);
-  }, [theme, accentColor]);
+  }, [theme, look]);
 
   // Handle system theme changes when theme is set to "system"
   useEffect(() => {

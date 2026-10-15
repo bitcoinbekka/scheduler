@@ -28,10 +28,11 @@ import { RelayListManager } from '@/components/RelayListManager';
 import { SchedulerBackendSettings } from '@/components/SchedulerBackendSettings';
 import { SchedulerBunkerSettings } from '@/components/SchedulerBunkerSettings';
 import { useTheme } from '@/hooks/useTheme';
+import { LookPicker } from '@/components/LookPicker';
 import { useScheduler } from '@/contexts/SchedulerContext';
 import { useToast } from '@/hooks/useToast';
 import { loadPosts, savePosts, loadQueues, saveQueues } from '@/lib/schedulerStore';
-import type { Theme, AccentColor, EditorFont } from '@/contexts/AppContext';
+import type { Theme } from '@/contexts/AppContext';
 import { cn } from '@/lib/utils';
 
 const THEME_OPTIONS: { value: Theme; label: string; icon: React.ElementType }[] = [
@@ -40,25 +41,13 @@ const THEME_OPTIONS: { value: Theme; label: string; icon: React.ElementType }[] 
   { value: 'system', label: 'System', icon: Monitor },
 ];
 
-const ACCENT_OPTIONS: { value: AccentColor; label: string; swatch: string }[] = [
-  { value: 'rose', label: 'Rose', swatch: 'bg-[hsl(334_100%_58%)]' },
-  { value: 'orange', label: 'Plebeian orange', swatch: 'bg-[hsl(16_100%_56%)]' },
-  { value: 'green', label: 'Green', swatch: 'bg-[hsl(152_50%_36%)]' },
-];
-
-const FONT_OPTIONS: { value: EditorFont; label: string; sample: string; className: string }[] = [
-  { value: 'sans', label: 'Sans', sample: 'The stall is open.', className: 'font-ui' },
-  { value: 'serif', label: 'Serif', sample: 'The stall is open.', className: 'font-article' },
-  { value: 'mono', label: 'Mono', sample: 'The stall is open.', className: 'font-mono' },
-];
-
 export default function SettingsPage() {
   useSeoMeta({
     title: 'Settings - Plebeian Scheduler',
     description: 'Configure your Plebeian Scheduler preferences.',
   });
 
-  const { theme, setTheme, accentColor, setAccentColor, editorFont, setEditorFont } = useTheme();
+  const { theme, setTheme, look, setLook } = useTheme();
   const { posts, queues, refreshPosts } = useScheduler();
   const { toast } = useToast();
 
@@ -124,11 +113,18 @@ export default function SettingsPage() {
             <Settings className="w-4 h-4" />
             Appearance
           </CardTitle>
-          <CardDescription>Theme, accent colour, and article editor font</CardDescription>
+          <CardDescription>
+            Pick a look for the whole scheduler. Fonts, colours, and corners all change. Light and dark still sit on top.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">Theme</p>
+            <p className="text-xs font-medium text-muted-foreground mb-2">Look</p>
+            <LookPicker value={look} onChange={setLook} />
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2">Light or dark</p>
             <div className="grid grid-cols-3 gap-3">
               {THEME_OPTIONS.map(opt => {
                 const Icon = opt.icon;
@@ -149,51 +145,6 @@ export default function SettingsPage() {
                   </button>
                 );
               })}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">Accent colour</p>
-            <div className="grid grid-cols-3 gap-3">
-              {ACCENT_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setAccentColor(opt.value)}
-                  className={cn(
-                    'flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all',
-                    accentColor === opt.value
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/30'
-                  )}
-                >
-                  <span className={cn('w-5 h-5 rounded-full', opt.swatch)} />
-                  <span className="text-sm font-medium text-center leading-tight">{opt.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">Article editor font</p>
-            <div className="grid grid-cols-3 gap-3">
-              {FONT_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setEditorFont(opt.value)}
-                  className={cn(
-                    'flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all',
-                    editorFont === opt.value
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/30'
-                  )}
-                >
-                  <span className={cn('text-lg', opt.className)}>Aa</span>
-                  <span className="text-sm font-medium">{opt.label}</span>
-                  <span className={cn('text-[10px] text-muted-foreground', opt.className)}>{opt.sample}</span>
-                </button>
-              ))}
             </div>
           </div>
         </CardContent>

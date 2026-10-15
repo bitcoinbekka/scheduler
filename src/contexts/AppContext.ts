@@ -1,8 +1,10 @@
 import { createContext } from "react";
+import type { Look } from "@/lib/looks";
 
 export type Theme = "dark" | "light" | "system";
 export type AccentColor = "rose" | "orange" | "green";
 export type EditorFont = "sans" | "serif" | "mono";
+export type { Look };
 
 export interface RelayMetadata {
   /** List of relays with read/write permissions */
@@ -14,9 +16,14 @@ export interface RelayMetadata {
 export interface AppConfig {
   /** Current theme */
   theme: Theme;
-  /** Accent used for buttons, links, and highlights. Optional so older saved configs still parse. */
+  /**
+   * Named look for the whole website: fonts, surfaces, corners, and palette.
+   * Optional so older saved configs still parse.
+   */
+  look?: Look;
+  /** Legacy accent. Kept so older saved configs still parse. Prefer `look`. */
   accentColor?: AccentColor;
-  /** Font used in the article editor and preview. */
+  /** Font used in the article editor and preview. Independent of the website look. */
   editorFont?: EditorFont;
   /** NIP-65 relay list metadata */
   relayMetadata: RelayMetadata;

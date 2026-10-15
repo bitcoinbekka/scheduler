@@ -1,12 +1,15 @@
-import { type Theme, type AccentColor, type EditorFont } from "@/contexts/AppContext";
+import { type Theme, type AccentColor, type EditorFont, type Look } from "@/contexts/AppContext";
 import { useAppContext } from "@/hooks/useAppContext";
+import { resolveLook } from "@/lib/looks";
 
 /**
- * Hook to get and set appearance: theme, accent colour, and editor font.
+ * Hook to get and set appearance: light/dark, named website look, and article font.
  */
 export function useTheme(): {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  look: Look;
+  setLook: (look: Look) => void;
   accentColor: AccentColor;
   setAccentColor: (accentColor: AccentColor) => void;
   editorFont: EditorFont;
@@ -20,6 +23,13 @@ export function useTheme(): {
       updateConfig((currentConfig) => ({
         ...currentConfig,
         theme,
+      }));
+    },
+    look: resolveLook(config.look, config.accentColor),
+    setLook: (look: Look) => {
+      updateConfig((currentConfig) => ({
+        ...currentConfig,
+        look,
       }));
     },
     accentColor: config.accentColor ?? 'rose',

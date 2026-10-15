@@ -20,10 +20,10 @@ export default {
 		},
 		extend: {
 			fontFamily: {
-				sans: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
-				mono: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
-				display: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
-				ui: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+				sans: ['var(--font-sans)'],
+				mono: ['var(--font-mono)'],
+				display: ['var(--font-display)'],
+				ui: ['var(--font-ui)'],
 				article: ['Georgia', 'Iowan Old Style', 'Palatino Linotype', 'Palatino', 'serif'],
 			},
 			colors: {
