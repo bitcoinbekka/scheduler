@@ -34,6 +34,33 @@ function extractMentionedPubkeys(content: string): string[] {
   return Array.from(pubkeys);
 }
 
+/** NIP-99 `a` tag plus a p-tag for the listing author. */
+function addListingReference(
+  tags: string[][],
+  post: SchedulerPost,
+  addP: (pubkey: string) => void,
+) {
+  const listing = post.importedListing;
+  if (!listing) return;
+
+  if (listing.naddr) {
+    try {
+      const decoded = nip19.decode(listing.naddr);
+      if (decoded.type === 'naddr') {
+        const { kind, pubkey, identifier } = decoded.data;
+        tags.push(['a', `${kind}:${pubkey}:${identifier}`]);
+        addP(pubkey);
+      }
+    } catch {
+      // Invalid naddr, skip the a-tag
+    }
+  }
+
+  if (listing.authorPubkey) {
+    addP(listing.authorPubkey);
+  }
+}
+
 /** Build an imeta tag from an UploadedImage (NIP-92) */
 function buildImetaTag(img: UploadedImage): string[] {
   const parts: string[] = ['imeta', `url ${img.url}`];
@@ -86,10 +113,15 @@ function buildShortNoteEvent(post: SchedulerPost, now: number): UnsignedEvent {
     tags.push(buildImetaTag(img));
   }
 
-  // Extract nostr: mentions from content and add p tags (NIP-27)
-  const mentionedPubkeys = extractMentionedPubkeys(content);
-  for (const pubkey of mentionedPubkeys) {
+  const pSeen = new Set<string>();
+  const addP = (pubkey: string) => {
+    if (!pubkey || pSeen.has(pubkey)) return;
+    pSeen.add(pubkey);
     tags.push(['p', pubkey]);
+  };
+
+  for (const pubkey of extractMentionedPubkeys(content)) {
+    addP(pubkey);
   }
 
   // NIP-40 expiration
@@ -97,21 +129,7 @@ function buildShortNoteEvent(post: SchedulerPost, now: number): UnsignedEvent {
     tags.push(['expiration', String(post.expiresAt)]);
   }
 
-  // NIP-99 listing reference (promo notes)
-  if (post.importedListing?.naddr) {
-    try {
-      const decoded = nip19.decode(post.importedListing.naddr);
-      if (decoded.type === 'naddr') {
-        const { kind, pubkey, identifier } = decoded.data;
-        tags.push(['a', `${kind}:${pubkey}:${identifier}`]);
-      }
-    } catch {
-      // Invalid naddr, skip
-    }
-    if (post.importedListing.authorPubkey) {
-      tags.push(['p', post.importedListing.authorPubkey]);
-    }
-  }
+  addListingReference(tags, post, addP);
 
   return {
     kind: 1,
@@ -163,32 +181,22 @@ function buildLongFormEvent(post: SchedulerPost, now: number): UnsignedEvent {
     tags.push(buildImetaTag(img));
   }
 
-  // Extract nostr: mentions from content and add p tags (NIP-27)
-  const mentionedPubkeys = extractMentionedPubkeys(post.content);
-  for (const pubkey of mentionedPubkeys) {
+  const pSeen = new Set<string>();
+  const addP = (pubkey: string) => {
+    if (!pubkey || pSeen.has(pubkey)) return;
+    pSeen.add(pubkey);
     tags.push(['p', pubkey]);
+  };
+
+  for (const pubkey of extractMentionedPubkeys(post.content)) {
+    addP(pubkey);
   }
 
-  // NIP-40 expiration
   if (post.expiresAt) {
     tags.push(['expiration', String(post.expiresAt)]);
   }
 
-  // NIP-99 listing reference (promo notes)
-  if (post.importedListing?.naddr) {
-    try {
-      const decoded = nip19.decode(post.importedListing.naddr);
-      if (decoded.type === 'naddr') {
-        const { kind, pubkey, identifier } = decoded.data;
-        tags.push(['a', `${kind}:${pubkey}:${identifier}`]);
-      }
-    } catch {
-      // Invalid naddr, skip
-    }
-    if (post.importedListing.authorPubkey) {
-      tags.push(['p', post.importedListing.authorPubkey]);
-    }
-  }
+  addListingReference(tags, post, addP);
 
   return {
     kind: 30023,

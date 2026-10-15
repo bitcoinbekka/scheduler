@@ -2,7 +2,7 @@ import { useNostr } from '@nostrify/react';
 import { useQuery } from '@tanstack/react-query';
 import { useCurrentUser } from './useCurrentUser';
 import { useAuthor } from './useAuthor';
-import type { NostrEvent, NostrMetadata } from '@nostrify/nostrify';
+import type { NostrEvent, NostrFilter, NostrMetadata } from '@nostrify/nostrify';
 
 /** Parsed listing data from a NIP-99 kind 30402 event */
 export interface ExistingListing {
@@ -44,9 +44,9 @@ export function parseListing(event: NostrEvent): ExistingListing | null {
     .map(([, v]) => v);
 
   // Images from image tags
-  const images = event.tags
-    .filter(([n]) => n === 'image')
-    .map(([, url, dims]) => ({ url, dimensions: dims }));
+  const images: { url: string; dimensions?: string }[] = event.tags
+    .filter((tag) => tag[0] === 'image' && !!tag[1])
+    .map(([, url, dims]) => ({ url, dimensions: dims || undefined }));
 
   // Also check imeta tags for images not in image tags
   const imetaUrls = new Set(images.map(i => i.url));
@@ -93,16 +93,21 @@ export function useMyListings() {
     queryFn: async () => {
       if (!user) return [];
 
-      const events = await nostr.query([{
-        kinds: [30402],
-        authors: [user.pubkey],
-        limit: 50,
-      }]);
+      const events = await nostr.query(
+        [{
+          kinds: [30402],
+          authors: [user.pubkey],
+          limit: 50,
+        }],
+        { signal: AbortSignal.timeout(8000) },
+      );
 
       const listings: ExistingListing[] = [];
       for (const event of events) {
         const parsed = parseListing(event);
-        if (parsed) listings.push(parsed);
+        if (parsed && parsed.status !== 'sold' && parsed.status !== 'deleted') {
+          listings.push(parsed);
+        }
       }
 
       listings.sort((a, b) => b.event.created_at - a.event.created_at);
@@ -124,17 +129,15 @@ export function useAllListings(searchTerm: string, enabled = true) {
     queryKey: ['all-listings', searchTerm],
     queryFn: async () => {
       // Build filter — if search term provided, filter by t tag at relay level
-      const filters: Record<string, unknown>[] = [];
+      const filters: NostrFilter[] = [];
       const trimmed = searchTerm.trim().toLowerCase();
 
       if (trimmed) {
-        // Search by t tag (relay-indexed)
         filters.push({
           kinds: [30402],
           '#t': [trimmed],
           limit: 40,
         });
-        // Also search without tag filter for broader results
         filters.push({
           kinds: [30402],
           limit: 40,
@@ -146,7 +149,7 @@ export function useAllListings(searchTerm: string, enabled = true) {
         });
       }
 
-      const events = await nostr.query(filters);
+      const events = await nostr.query(filters, { signal: AbortSignal.timeout(8000) });
 
       // Deduplicate by event id
       const seen = new Set<string>();
@@ -161,8 +164,7 @@ export function useAllListings(searchTerm: string, enabled = true) {
       const listings: ExistingListing[] = [];
       for (const event of unique) {
         const parsed = parseListing(event);
-        if (parsed) {
-          // If search term, do client-side filtering too
+        if (parsed && parsed.status !== 'sold' && parsed.status !== 'deleted') {
           if (trimmed) {
             const matchesTitle = parsed.title.toLowerCase().includes(trimmed);
             const matchesSummary = parsed.summary.toLowerCase().includes(trimmed);

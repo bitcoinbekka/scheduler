@@ -1,7 +1,15 @@
 import { describe, it, expect } from 'vitest';
+import { nip19 } from 'nostr-tools';
 import { buildEvent, buildDvmPublishRequest } from './eventBuilder';
 import { createNewPost } from './types';
 import type { SchedulerPost } from './types';
+
+const LISTING_PUBKEY = 'df476caf4888bf5d99c6a710ea6ae943d3e693d29cdc75c4eff1cfb634839bb8';
+const LISTING_NADDR = nip19.naddrEncode({
+  kind: 30402,
+  pubkey: LISTING_PUBKEY,
+  identifier: 'viking-axe',
+});
 
 /** Helper: create a promo note post */
 function makePromoPost(overrides: Partial<SchedulerPost> = {}): SchedulerPost {
@@ -24,8 +32,8 @@ function makePromoPost(overrides: Partial<SchedulerPost> = {}): SchedulerPost {
     location: 'Reykjavik, Iceland',
     categories: ['tools', 'handmade', 'bitcoin'],
     images: [{ url: 'https://example.com/axe.jpg', dimensions: '1200x800' }],
-    authorPubkey: 'abc123pubkey',
-    naddr: 'naddr1test...',
+    authorPubkey: LISTING_PUBKEY,
+    naddr: LISTING_NADDR,
   };
   return { ...post, ...overrides };
 }
@@ -84,6 +92,23 @@ describe('buildEvent — kind 1 promo note', () => {
     expect(event.kind).toBe(1);
     expect(event.content).toBe('Hello Nostr!');
     expect(event.tags.length).toBe(0);
+  });
+
+  it('adds a NIP-99 a-tag from a real listing naddr', () => {
+    const post = makePromoPost();
+    const event = buildEvent(post);
+    const aTag = event.tags.find(t => t[0] === 'a');
+    expect(aTag).toEqual(['a', `30402:${LISTING_PUBKEY}:viking-axe`]);
+    const pTags = event.tags.filter(t => t[0] === 'p').map(t => t[1]);
+    expect(pTags).toContain(LISTING_PUBKEY);
+    expect(new Set(pTags).size).toBe(pTags.length);
+  });
+
+  it('skips a-tag when the stored naddr is garbage', () => {
+    const post = makePromoPost();
+    post.importedListing = { ...post.importedListing!, naddr: 'naddr1not-real' };
+    const event = buildEvent(post);
+    expect(event.tags.find(t => t[0] === 'a')).toBeUndefined();
   });
 
   it('includes multiple media attachments', () => {

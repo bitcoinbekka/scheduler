@@ -24,6 +24,7 @@ import {
   Pencil,
   Repeat2,
   AtSign,
+  Columns2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -138,7 +139,7 @@ export default function Compose() {
   const [showScheduler, setShowScheduler] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hashtagInput, setHashtagInput] = useState('');
-  const [showNotePreview, setShowNotePreview] = useState(false);
+  const [noteView, setNoteView] = useState<'write' | 'split' | 'preview'>('split');
   const [customIntervalValue, setCustomIntervalValue] = useState('');
   const [customIntervalUnit, setCustomIntervalUnit] = useState<'days' | 'weeks' | 'months'>('days');
   const [mentionPopoverOpen, setMentionPopoverOpen] = useState(false);
@@ -678,17 +679,24 @@ export default function Compose() {
                 <X className="w-3.5 h-3.5" />
               </Button>
             </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 ml-11">
             {post.importedListing.marketplaceUrl && (
               <a
                 href={post.importedListing.marketplaceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-primary hover:underline ml-11"
+                className="flex items-center gap-1.5 text-xs text-primary hover:underline"
               >
                 <ExternalLink className="w-3 h-3" />
                 View on Plebeian Market
               </a>
             )}
+            {post.importedListing.naddr ? (
+              <span className="text-[10px] text-muted-foreground">NIP-99 listing linked</span>
+            ) : (
+              <span className="text-[10px] text-amber-600">Listing naddr missing — clients will not deep-link this product</span>
+            )}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -857,10 +865,10 @@ export default function Compose() {
           />
         </div>
       ) : (
-        /* Short / Promo: simple card editor with edit/preview toggle */
+        /* Short / Promo: split write | live client preview */
         <Card>
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-base">Your Note</CardTitle>
               <div className="flex items-center gap-2">
                 <AiGenerateDialog
@@ -883,29 +891,39 @@ export default function Compose() {
                     AI Generate
                   </Button>
                 </AiGenerateDialog>
-                {/* Edit / Preview toggle */}
-                <Button
-                  variant={showNotePreview ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="gap-1.5 text-xs"
-                  onClick={() => setShowNotePreview(!showNotePreview)}
-                >
-                  {showNotePreview ? <Pencil className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  {showNotePreview ? 'Edit' : 'Preview'}
-                </Button>
+                <div className="flex items-center rounded-md border bg-background p-0.5">
+                  {([
+                    { id: 'write' as const, icon: Pencil, label: 'Write' },
+                    { id: 'split' as const, icon: Columns2, label: 'Split' },
+                    { id: 'preview' as const, icon: Eye, label: 'Preview' },
+                  ]).map(opt => (
+                    <Tooltip key={opt.id}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant={noteView === opt.id ? 'secondary' : 'ghost'}
+                          size="icon"
+                          className="w-7 h-7"
+                          onClick={() => setNoteView(opt.id)}
+                        >
+                          <opt.icon className="w-3.5 h-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="text-xs">{opt.label}</TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {showNotePreview ? (
-              /* Preview mode — client mockup */
-              <ClientPreview
-                content={post.content}
-                images={post.media.map(m => m.url)}
-                metadata={authorData?.metadata}
-              />
-            ) : (
-              /* Edit mode — textarea with inline image upload */
+            <div
+              className={cn(
+                'grid gap-4',
+                noteView === 'split' ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1',
+              )}
+            >
+              {(noteView === 'write' || noteView === 'split') && (
               <div className="relative">
                 <Textarea
                   ref={noteTextareaRef}
@@ -916,10 +934,9 @@ export default function Compose() {
                   }
                   value={post.content}
                   onChange={e => updateField('content', e.target.value)}
-                  className="min-h-[160px] text-sm pb-12"
-                  rows={8}
+                  className="min-h-[220px] text-sm pb-12"
+                  rows={10}
                 />
-                {/* Inline toolbar at bottom of textarea */}
                 <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1">
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -949,7 +966,6 @@ export default function Compose() {
                     onChange={handleInlineImageUpload}
                   />
 
-                  {/* @Mention button */}
                   <Popover open={mentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -977,7 +993,21 @@ export default function Compose() {
                   </Popover>
                 </div>
               </div>
-            )}
+              )}
+
+              {(noteView === 'preview' || noteView === 'split') && (
+                <div className={cn(noteView === 'split' && 'lg:border-l lg:pl-4')}>
+                  {noteView === 'split' && (
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Preview</p>
+                  )}
+                  <ClientPreview
+                    content={post.content}
+                    images={post.media.map(m => m.url)}
+                    metadata={authorData?.metadata}
+                  />
+                </div>
+              )}
+            </div>
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
                 {post.content.length} characters

@@ -1,5 +1,4 @@
 import { useState, useCallback, useMemo } from 'react';
-import { nip19 } from 'nostr-tools';
 import {
   Search,
   Tag,
@@ -13,7 +12,6 @@ import {
   Globe,
   Loader2,
   CalendarClock,
-  Pencil,
   X,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,7 +31,8 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { NostrMetadata } from '@nostrify/nostrify';
-import { PLEBEIAN_MARKET_URL, type ImportedListing, type UploadedImage } from '@/lib/types';
+import { type ImportedListing, type UploadedImage } from '@/lib/types';
+import { listingToImported } from '@/lib/listingImport';
 
 export interface CampaignListing {
   content: string;
@@ -53,67 +52,6 @@ interface ListingBrowserProps {
 }
 
 type BrowseMode = 'mine' | 'all';
-
-/** Build an naddr1 for a NIP-99 listing */
-function buildNaddr(listing: ExistingListing): string {
-  try {
-    return nip19.naddrEncode({
-      kind: 30402,
-      pubkey: listing.event.pubkey,
-      identifier: listing.dTag,
-    });
-  } catch {
-    return '';
-  }
-}
-
-/** Build the Plebeian Market web URL for a listing */
-function buildMarketplaceUrl(listing: ExistingListing): string {
-  // Plebeian Market uses /products/{event_id} for product pages
-  return `${PLEBEIAN_MARKET_URL}/products/${listing.event.id}`;
-}
-
-/** Build a promo note content string from listing data */
-function buildPromoContent(listing: ExistingListing): string {
-  const parts: string[] = [];
-
-  // Title as the hook
-  if (listing.title) {
-    parts.push(listing.title);
-  }
-
-  // Summary or a snippet of description
-  if (listing.summary) {
-    parts.push(listing.summary);
-  } else if (listing.content) {
-    // Take first ~200 chars of the listing description
-    const snippet = listing.content.length > 200
-      ? listing.content.slice(0, 200).trim() + '...'
-      : listing.content;
-    parts.push(snippet);
-  }
-
-  // Price line
-  if (listing.price) {
-    const currencyLabel = listing.currency === 'SAT' ? 'sats'
-      : listing.currency === 'BTC' ? 'BTC'
-        : listing.currency;
-    parts.push(`Price: ${listing.price} ${currencyLabel}`);
-  }
-
-  // Location
-  if (listing.location) {
-    parts.push(`📍 ${listing.location}`);
-  }
-
-  // Direct buy link to Plebeian Market
-  const marketplaceUrl = buildMarketplaceUrl(listing);
-  if (marketplaceUrl) {
-    parts.push(`🛒 Buy here: ${marketplaceUrl}`);
-  }
-
-  return parts.join('\n\n');
-}
 
 /** Small inline author badge */
 function AuthorBadge({ pubkey }: { pubkey: string }) {
@@ -262,35 +200,7 @@ export function ListingBrowser({ onImport, onCampaign }: ListingBrowserProps) {
   );
 
   const handleImportListing = useCallback((listing: ExistingListing) => {
-    // Build a promo note from the listing data
-    const promoContent = buildPromoContent(listing);
-
-    // Convert listing images to UploadedImage format for media attachments
-    const media: UploadedImage[] = listing.images.map(img => ({
-      url: img.url,
-      dimensions: img.dimensions,
-    }));
-
-    // Store the imported listing metadata for AI context / reference
-    const naddr = buildNaddr(listing);
-    const importedListing: ImportedListing = {
-      naddr,
-      marketplaceUrl: `${PLEBEIAN_MARKET_URL}/products/${listing.event.id}`,
-      title: listing.title,
-      summary: listing.summary,
-      price: listing.price,
-      currency: listing.currency || 'SAT',
-      location: listing.location,
-      categories: listing.categories,
-      images: media,
-      authorPubkey: listing.event.pubkey,
-    };
-
-    onImport({
-      content: promoContent,
-      media,
-      importedListing,
-    });
+    onImport(listingToImported(listing));
   }, [onImport]);
 
   const toggleSelection = useCallback((eventId: string) => {
@@ -328,29 +238,13 @@ export function ListingBrowser({ onImport, onCampaign }: ListingBrowserProps) {
     return currentListings
       .filter(l => selectedIds.has(l.event.id))
       .map(listing => {
-        const defaultContent = buildPromoContent(listing);
+        const imported = listingToImported(listing);
         const customContent = campaignDrafts.get(listing.event.id);
-        const media: UploadedImage[] = listing.images.map(img => ({
-          url: img.url,
-          dimensions: img.dimensions,
-        }));
-        const naddr = buildNaddr(listing);
         return {
           listing,
-          content: customContent ?? defaultContent,
-          media,
-          importedListing: {
-            naddr,
-            marketplaceUrl: `${PLEBEIAN_MARKET_URL}/products/${listing.event.id}`,
-            title: listing.title,
-            summary: listing.summary,
-            price: listing.price,
-            currency: listing.currency || 'SAT',
-            location: listing.location,
-            categories: listing.categories,
-            images: media,
-            authorPubkey: listing.event.pubkey,
-          } as ImportedListing,
+          content: customContent ?? imported.content,
+          media: imported.media,
+          importedListing: imported.importedListing,
         };
       });
   }, [campaignMode, selectedIds, currentListings, campaignDrafts]);
