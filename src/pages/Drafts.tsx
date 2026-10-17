@@ -27,7 +27,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useScheduler } from '@/contexts/SchedulerContext';
-import { useToast } from '@/hooks/useToast';
+import { useHoldSchedule } from '@/hooks/useHoldSchedule';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { SchedulerPost } from '@/lib/types';
@@ -65,16 +65,16 @@ export default function Drafts() {
     description: 'Manage your draft promotional posts.',
   });
 
-  const { posts, removePost } = useScheduler();
-  const { toast } = useToast();
+  const { posts } = useScheduler();
+  const { deleteAndCancel } = useHoldSchedule();
 
   const drafts = posts
     .filter(p => p.status === 'draft')
     .sort((a, b) => b.updatedAt - a.updatedAt);
 
   const handleDelete = (id: string) => {
-    removePost(id);
-    toast({ title: 'Draft deleted' });
+    const post = posts.find(p => p.id === id);
+    if (post) void deleteAndCancel(post);
   };
 
   return (

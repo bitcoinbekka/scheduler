@@ -16,6 +16,7 @@ import {
   Trash2,
   Send,
   FileText,
+  PauseCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,7 +33,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useScheduler } from '@/contexts/SchedulerContext';
-import { useToast } from '@/hooks/useToast';
+import { useHoldSchedule } from '@/hooks/useHoldSchedule';
+import { isLiveAlarm } from '@/lib/holdSchedule';
 import {
   format,
   startOfMonth,
@@ -100,10 +102,11 @@ export default function CalendarView() {
     description: 'View your scheduled posts in a calendar layout.',
   });
 
-  const { posts, removePost } = useScheduler();
-  const { toast } = useToast();
+  const { posts } = useScheduler();
+  const { holdAsDraft, deleteAndCancel } = useHoldSchedule();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   // Get all days to display in the calendar grid
   const calendarDays = useMemo(() => {
@@ -373,6 +376,26 @@ export default function CalendarView() {
                         </Button>
                       </Link>
 
+                      {isLiveAlarm(post) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 h-7 text-xs"
+                          disabled={busyId === post.id}
+                          onClick={async () => {
+                            setBusyId(post.id);
+                            try {
+                              await holdAsDraft(post);
+                            } finally {
+                              setBusyId(null);
+                            }
+                          }}
+                        >
+                          <PauseCircle className="w-3 h-3" />
+                          Hold
+                        </Button>
+                      )}
+
                       {post.status === 'scheduled' && (
                         <Badge variant="secondary" className="text-[10px] h-5 ml-auto">
                           {post.scheduledAt && formatDistanceToNow(new Date(post.scheduledAt * 1000), { addSuffix: true })}
@@ -390,15 +413,21 @@ export default function CalendarView() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Delete this post?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This will permanently remove the post from your schedule.
+                                {post.serverEventId
+                                  ? 'This removes the post and cancels the server alarm.'
+                                  : 'This will permanently remove the post from your schedule.'}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction
-                                onClick={() => {
-                                  removePost(post.id);
-                                  toast({ title: 'Post deleted' });
+                                onClick={async () => {
+                                  setBusyId(post.id);
+                                  try {
+                                    await deleteAndCancel(post);
+                                  } finally {
+                                    setBusyId(null);
+                                  }
                                 }}
                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                               >

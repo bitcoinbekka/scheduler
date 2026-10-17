@@ -16,6 +16,7 @@ import {
   CalendarClock,
   CheckCircle2,
   AlertTriangle,
+  PauseCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useScheduler } from '@/contexts/SchedulerContext';
 import { useToast } from '@/hooks/useToast';
+import { useHoldSchedule } from '@/hooks/useHoldSchedule';
+import { isLiveAlarm } from '@/lib/holdSchedule';
 import { format } from 'date-fns';
 import type { SchedulerPost } from '@/lib/types';
 
@@ -67,6 +70,7 @@ export default function QueuePage() {
 
   const { posts, queues, addQueue, removeQueue: removeQueueAction, updatePost, reorderQueue } = useScheduler();
   const { toast } = useToast();
+  const { holdAsDraft } = useHoldSchedule();
   const [showNewQueue, setShowNewQueue] = useState(false);
   const [newQueueName, setNewQueueName] = useState('');
   const [newQueueDesc, setNewQueueDesc] = useState('');
@@ -181,6 +185,17 @@ export default function QueuePage() {
                   <PenSquare className="w-3.5 h-3.5" />
                 </Button>
               </Link>
+              {isLiveAlarm(post) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-7 h-7"
+                  title="Hold as draft"
+                  onClick={() => void holdAsDraft(post)}
+                >
+                  <PauseCircle className="w-3.5 h-3.5" />
+                </Button>
+              )}
               {(post.status === 'queued' || post.status === 'failed') && (
                 <Button
                   variant="ghost"

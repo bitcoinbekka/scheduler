@@ -67,6 +67,8 @@ import { useBatchEngagement } from '@/hooks/usePostEngagement';
 import { useSmartHashtags } from '@/hooks/useSmartHashtags';
 import { buildEvent } from '@/lib/eventBuilder';
 import { scheduleEvent } from '@/lib/schedulerApi';
+import { cancelServerJob } from '@/lib/holdSchedule';
+import { useHoldSchedule } from '@/hooks/useHoldSchedule';
 import { loadBunkerSettings, parseBunkerUri } from '@/lib/bunkerUri';
 import { templateFromBuild } from '@/lib/fireTimeEvent';
 import { createNewPost, type SchedulerPost, type PostType, type PostTemplate, type ImportedListing, type UploadedImage } from '@/lib/types';
@@ -89,7 +91,8 @@ export default function Compose() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useCurrentUser();
-  const { updatePost, removePost, posts } = useScheduler();
+  const { updatePost, posts } = useScheduler();
+  const { holdAsDraft, deleteAndCancel } = useHoldSchedule();
   const { mutateAsync: publishEvent, isPending: isPublishing } = useNostrPublish();
   const { mutateAsync: uploadFile } = useUploadFile();
   const { data: authorData } = useAuthor(user?.pubkey);
@@ -257,22 +260,56 @@ export default function Compose() {
     }
   }, [user, toast]);
 
-  // Save as draft
-  const handleSaveDraft = useCallback(() => {
+  const isScheduled = post.status === 'scheduled';
+
+  // Save as draft. If a server alarm is set, cancel it first.
+  const handleSaveDraft = useCallback(async () => {
     setIsSaving(true);
-    const updated = { ...post, status: 'draft' as const, authorPubkey: user?.pubkey ?? post.authorPubkey };
-    updatePost(updated);
-    setPost(updated);
-    setPersisted(true);
-    toast({ title: 'Draft saved', description: 'Your draft has been saved locally.' });
-    setIsSaving(false);
-  }, [post, user, updatePost, toast]);
+    try {
+      if (post.serverEventId) {
+        const held = await holdAsDraft({ ...post, authorPubkey: user?.pubkey ?? post.authorPubkey });
+        if (!held) return;
+        const updated = { ...post, status: 'draft' as const, serverEventId: null, authorPubkey: user?.pubkey ?? post.authorPubkey };
+        setPost(updated);
+        setPersisted(true);
+        return;
+      }
+      const updated = { ...post, status: 'draft' as const, authorPubkey: user?.pubkey ?? post.authorPubkey };
+      updatePost(updated);
+      setPost(updated);
+      setPersisted(true);
+      toast({ title: 'Draft saved', description: 'Your draft has been saved locally.' });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [post, user, updatePost, toast, holdAsDraft]);
 
   // Core scheduling logic — pre-sign (default) or NIP-46 fire-time (Amber bunker)
   const submitSchedule = useCallback(async (scheduledAt: number) => {
     if (!user) return;
 
     const postToSchedule = { ...post, authorPubkey: user.pubkey };
+
+    if (post.serverEventId) {
+      const cancelResult = await cancelServerJob(post.serverEventId);
+      if (cancelResult === 'published') {
+        toast({
+          title: 'Already published',
+          description: 'This post already went out. Pick a new draft if you want to send it again.',
+          variant: 'destructive',
+        });
+        return { ok: false };
+      }
+      if (cancelResult === 'error') {
+        toast({
+          title: 'Could not reschedule',
+          description: 'The original send time is still set. Try again.',
+          variant: 'destructive',
+        });
+        return { ok: false };
+      }
+    }
+
     const eventData = buildEvent(postToSchedule);
     const writeRelays = config.relayMetadata.relays
       .filter(r => r.write)
@@ -452,11 +489,15 @@ export default function Compose() {
     }
   }, [post, user, publishEvent, updatePost, toast, navigate]);
 
-  const handleDelete = useCallback(() => {
-    if (persisted) removePost(post.id);
-    toast({ title: 'Post deleted' });
+  const handleDelete = useCallback(async () => {
+    if (persisted) {
+      const ok = await deleteAndCancel(post);
+      if (!ok) return;
+    } else {
+      toast({ title: 'Post deleted' });
+    }
     navigate('/');
-  }, [post, persisted, removePost, toast, navigate]);
+  }, [post, persisted, deleteAndCancel, toast, navigate]);
 
   // Import from listing browser
   const handleImport = useCallback((data: { content: string; media: UploadedImage[]; importedListing: ImportedListing }) => {
@@ -1187,7 +1228,7 @@ export default function Compose() {
             disabled={isSaving}
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Save Draft
+            {isScheduled ? 'Hold as draft' : 'Save Draft'}
           </Button>
 
           <Button
@@ -1216,7 +1257,9 @@ export default function Compose() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete this post?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. The draft will be permanently removed.
+                  {post.serverEventId
+                    ? 'This removes the post and cancels the server alarm. It cannot be undone.'
+                    : 'This action cannot be undone. The draft will be permanently removed.'}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -1234,7 +1277,7 @@ export default function Compose() {
             onClick={() => setShowScheduler(true)}
           >
             <CalendarClock className="w-4 h-4" />
-            Schedule
+            {isScheduled ? 'Reschedule' : 'Schedule'}
           </Button>
 
           {/* Schedule Dialog */}
@@ -1244,10 +1287,12 @@ export default function Compose() {
                 <AlertDialogHeader className="pb-0">
                   <AlertDialogTitle className="flex items-center gap-2">
                     <CalendarClock className="w-5 h-5 text-primary" />
-                    Schedule Post
+                    {isScheduled ? 'Reschedule Post' : 'Schedule Post'}
                   </AlertDialogTitle>
                   <AlertDialogDescription>
-                    Choose when to publish this {post.postType === 'long' ? 'article' : 'note'}
+                    {isScheduled
+                      ? `Pick a new time. The current ${post.postType === 'long' ? 'article' : 'note'} alarm will be cancelled first.`
+                      : `Choose when to publish this ${post.postType === 'long' ? 'article' : 'note'}`}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
               </div>
@@ -1441,13 +1486,14 @@ export default function Compose() {
                 >
                   {isScheduling ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />}
                   {isScheduling
-                    ? 'Scheduling...'
+                    ? (isScheduled ? 'Rescheduling...' : 'Scheduling...')
                     : scheduleDate
                       ? (() => {
                           const [h, m] = scheduleTime.split(':').map(Number);
                           const d = new Date(scheduleDate);
                           d.setHours(h, m);
-                          return `Schedule for ${format(d, 'MMM d')} at ${format(d, 'h:mm a')}`;
+                          const verb = isScheduled ? 'Reschedule' : 'Schedule';
+                          return `${verb} for ${format(d, 'MMM d')} at ${format(d, 'h:mm a')}`;
                         })()
                       : 'Pick a date first'}
                 </Button>
